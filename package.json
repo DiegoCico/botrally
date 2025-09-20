@@ -18,11 +18,18 @@
     "three": "^0.180.0",
     "web-vitals": "^2.1.4"
   },
+  "devDependencies": {
+    "concurrently": "^7.6.0"
+  },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "npm run setup && concurrently --names \"SERVER,CLIENT\" --prefix-colors \"blue,green\" \"npm run server\" \"npm run client\"",
+    "client": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "server": "cd server && npm start",
+    "dev": "npm start",
+    "setup": "cd server && npm install"
   },
   "eslintConfig": {
     "extends": [

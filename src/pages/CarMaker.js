@@ -79,6 +79,12 @@ export default function CarMaker() {
     spoiler: 'none',
   });
 
+  // Handle lobby parameters from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const lobbyCode = urlParams.get('code');
+  const playerRole = urlParams.get('role'); // 'p1' (host) or 'p2' (joiner)
+  const isMultiplayer = lobbyCode && playerRole;
+
   const handleSelectPart = (category, partId) => {
     setSelectedParts(prev => ({ ...prev, [category]: partId }));
   };
@@ -163,7 +169,28 @@ export default function CarMaker() {
               <StatBar label="Acceleration" value={totalStats.acceleration} />
               <StatBar label="Handling" value={totalStats.handling} />
             </div>
-            <div className="mt-6"><Button className="w-full">Save & Race 🏁</Button></div>
+            <div className="mt-6">
+              {isMultiplayer ? (
+                <div className="space-y-3">
+                  <div className="text-center text-sm text-slate-300">
+                    {playerRole === 'p1' ? '🏆 Host' : '🎮 Player 2'} • Code: <span className="font-mono text-fuchsia-300">{lobbyCode}</span>
+                  </div>
+                  <Button 
+                    className="w-full" 
+                    onClick={() => navigate(`/multiplayerRace?code=${encodeURIComponent(lobbyCode)}&role=${playerRole}&car=${encodeURIComponent(JSON.stringify(selectedParts))}`)}
+                  >
+                    Ready to Race! 🏁
+                  </Button>
+                </div>
+              ) : (
+                <Button 
+                  className="w-full"
+                  onClick={() => navigate(`/carBlocks?car=${encodeURIComponent(JSON.stringify(selectedParts))}`)}
+                >
+                  Save & Race 🏁
+                </Button>
+              )}
+            </div>
           </Card>
         </aside>
       </main>

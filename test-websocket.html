@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Lobby Test</title>
+</head>
+<body>
+    <h1>BotRally Lobby Server Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+    
+    <script>
+        const ws = new WebSocket('ws://localhost:8080');
+        const status = document.getElementById('status');
+        const messages = document.getElementById('messages');
+        
+        function addMessage(msg) {
+            const div = document.createElement('div');
+            div.textContent = new Date().toLocaleTimeString() + ': ' + msg;
+            messages.appendChild(div);
+        }
+        
+        ws.onopen = function() {
+            status.textContent = 'Connected to lobby server!';
+            status.style.color = 'green';
+            addMessage('Connected successfully');
+            
+            // Test creating a lobby
+            ws.send(JSON.stringify({
+                type: 'create-lobby',
+                playerId: 'test-player-' + Date.now()
+            }));
+        };
+        
+        ws.onmessage = function(event) {
+            const message = JSON.parse(event.data);
+            addMessage('Received: ' + JSON.stringify(message));
+        };
+        
+        ws.onclose = function() {
+            status.textContent = 'Disconnected from lobby server';
+            status.style.color = 'red';
+            addMessage('Connection closed');
+        };
+        
+        ws.onerror = function(error) {
+            status.textContent = 'Connection error';
+            status.style.color = 'red';
+            addMessage('Error: ' + error);
+        };
+    </script>
+</body>
+</html>

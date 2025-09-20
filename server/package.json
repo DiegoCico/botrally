@@ -1,0 +1,16 @@
+{
+  "name": "botrally-lobby-server",
+  "version": "1.0.0",
+  "description": "WebSocket lobby server for BotRally multiplayer",
+  "main": "lobby-server.js",
+  "scripts": {
+    "start": "node lobby-server.js",
+    "dev": "node lobby-server.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

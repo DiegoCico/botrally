@@ -25,29 +25,51 @@ function createGtWingSpoiler(materials) {
   return wing;
 }
 
-export function buildWheel(materials, type = 'default') {
-    let radius = 0.55, width = 0.35;
-
-    if (type === 'sporty') {
-      radius = 0.5;
-      width = 0.25;
-    } else if (type === 'offroad') {
-      radius = 0.65;
-      width = 0.45;
+export function buildWheel(type = 'standard', materials, castShadow, receiveShadow) {
+  const wheelGroup = new THREE.Group();
+  
+  // --- Off-Road Wheel ---
+  if (type === 'offroad') {
+    const radius = 0.65, width = 0.45;
+    const tire = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, width, 18), materials.tire);
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.5, radius * 0.5, width * 1.02, 6), materials.rim);
+    for (let i = 0; i < 8; i++) {
+      const tread = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.15, width * 1.05), materials.tire);
+      const angle = (i / 8) * Math.PI * 2;
+      tread.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
+      tread.rotation.z = angle + Math.PI / 2;
+      tire.add(tread);
     }
+    wheelGroup.add(tire, rim);
+  
+  // --- Slim/Sporty Wheel ---
+  } else if (type === 'slim') {
+    const radius = 0.58, width = 0.3;
+    const tire = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, width, 32), materials.tire);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(radius * 0.7, 0.05, 8, 24), materials.rim);
+    for (let i = 0; i < 7; i++) {
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.04, radius * 1.4, 0.04), materials.rim);
+      spoke.rotation.z = (i / 7) * (Math.PI);
+      rim.add(spoke);
+    }
+    wheelGroup.add(tire, rim);
 
-    const gTire = new THREE.CylinderGeometry(radius, radius, width, 18);
-    const gRim  = new THREE.CylinderGeometry(radius * 0.62, radius * 0.62, width * 1.02, 10);
-
-    const tire = new THREE.Mesh(gTire, materials.tire);
-    tire.rotation.x = Math.PI / 2;
-    const rim = new THREE.Mesh(gRim, materials.rim);
-    rim.rotation.x = Math.PI / 2;
-
-    const w = new THREE.Group();
-    w.add(tire, rim);
-    return w;
+  // --- Standard Wheel ---
+  } else {
+    const radius = 0.55, width = 0.35;
+    const tire = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, width, 18), materials.tire);
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.8, radius * 0.8, width * 0.5, 8), materials.rim);
+    wheelGroup.add(tire, rim);
   }
+  
+  wheelGroup.rotation.x = Math.PI / 2;
+
+  wheelGroup.traverse(o => { 
+    o.castShadow = castShadow; 
+    o.receiveShadow = receiveShadow; 
+  });
+  return wheelGroup;
+}
 
 export function buildLowPolyCar({
   bodyColor   = 0xc0455e,
@@ -139,10 +161,10 @@ export function buildLowPolyCar({
   group.add(spoilerContainer);
   
   // --- Wheels ---
-  const wheelFL = buildWheel(wheelType); wheelFL.position.set(1.35, 0.55, 0.95);
-  const wheelFR = buildWheel(wheelType); wheelFR.position.set(1.35, 0.55, -0.95);
-  const wheelRL = buildWheel(wheelType); wheelRL.position.set(-1.35, 0.55, 0.95);
-  const wheelRR = buildWheel(wheelType); wheelRR.position.set(-1.35, 0.55, -0.95);
+  const wheelFL = buildWheel(wheelType, materials, castShadow, receiveShadow); wheelFL.position.set(1.35, 0.55, 0.95);
+  const wheelFR = buildWheel(wheelType, materials, castShadow, receiveShadow); wheelFR.position.set(1.35, 0.55, -0.95);
+  const wheelRL = buildWheel(wheelType, materials, castShadow, receiveShadow); wheelRL.position.set(-1.35, 0.55, 0.95);
+  const wheelRR = buildWheel(wheelType, materials, castShadow, receiveShadow); wheelRR.position.set(-1.35, 0.55, -0.95);
 
   const wheels = { FL: wheelFL, FR: wheelFR, RL: wheelRL, RR: wheelRR };
   group.add(wheelFL, wheelFR, wheelRL, wheelRR);

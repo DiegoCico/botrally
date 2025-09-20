@@ -1,7 +1,7 @@
 // src/components/StartRaceCTA.js
-import React, { useMemo, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { createLobby, joinLobbyByCode } from '../net/lobbySearch';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { createLobby, joinLobbyByCode } from '../net/websocket-lobby';
 
 /* Local Button with your neon styles */
 const Button = ({ onClick, children, variant = 'neon', size = 'lg', className = '', disabled }) => {
@@ -18,8 +18,14 @@ const Button = ({ onClick, children, variant = 'neon', size = 'lg', className = 
     ghost: 'text-slate-200 hover:text-white hover:scale-105',
   };
   return (
-    <button disabled={disabled} onClick={onClick}
-      className={[base, sizes[size], variants[variant], disabled ? 'opacity-70 cursor-not-allowed' : '', className].join(' ')}>
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        base, sizes[size], variants[variant],
+        disabled ? 'opacity-70 cursor-not-allowed' : '', className,
+      ].join(' ')}
+    >
       {children}
     </button>
   );
@@ -27,32 +33,42 @@ const Button = ({ onClick, children, variant = 'neon', size = 'lg', className = 
 
 export default function StartRaceCTA() {
   const navigate = useNavigate();
-  const loc = useLocation(); // if you want route-aware things later
-  const [mode, setMode] = useState('idle'); // idle | choose | join | join-search | host | host-wait
+  const [mode, setMode] = useState('idle'); // idle | choose | join | join-search | host-wait
   const [code, setCode] = useState('');
   const [hostState, setHostState] = useState(null); // { code, cancel, waitForJoin }
   const [err, setErr] = useState('');
+  const anchorRef = useRef(null);
 
-  const containerStyle = useMemo(() => {
-    if (mode === 'choose') return 'gap-3 w-[340px]';
-    if (mode.startsWith('join')) return 'w-[380px]';
-    if (mode.startsWith('host')) return 'w-[440px]';
-    return 'w-[170px]';
-  }, [mode]);
+  // Close on outside click or Esc
+  useEffect(() => {
+    function onDocDown(e) {
+      if (!anchorRef.current) return;
+      if (!anchorRef.current.contains(e.target)) closeAll();
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') closeAll();
+    }
+    document.addEventListener('mousedown', onDocDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [hostState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function reset() {
+  function closeAll() {
     setMode('idle');
-    setCode('');
     setErr('');
+    setCode('');
     if (hostState?.cancel) hostState.cancel();
     setHostState(null);
   }
 
   function onStart() {
     setErr('');
-    setMode('choose');
+    setMode((m) => (m === 'choose' ? 'idle' : 'choose'));
   }
-  function onJoin() {
+  function onJoinClick() {
     setErr('');
     setMode('join');
   }
@@ -63,107 +79,152 @@ export default function StartRaceCTA() {
     setErr('');
     setMode('join-search');
     try {
-      const j = joinLobbyByCode(clean);
+      const j = await joinLobbyByCode(clean);
       const result = await j.waitForAccept({ timeoutMs: 20000 });
-      // Joiner → p2; carry code in URL
       navigate(`/carMaker?code=${encodeURIComponent(result.code)}&role=p2`);
     } catch (e) {
-      setErr(e.message || 'Could not find a host.');
+      console.error('Join error:', e);
+      if (e.message.includes('connect') || e.message.includes('server')) {
+        setErr('Could not connect to multiplayer server. Make sure the lobby server is running on localhost:8080');
+      } else {
+        setErr(e.message || 'Could not find a host.');
+      }
       setMode('join');
     }
   }
 
-  async function onHost() {
+  async function onHostClick() {
     setErr('');
-    setMode('host');
-    const lobby = createLobby();
-    setHostState(lobby);
-    setCode(lobby.code);
     setMode('host-wait');
     try {
+      const lobby = await createLobby();
+      setHostState(lobby);
+      setCode(lobby.code);
+      
       await lobby.waitForJoin({ timeoutMs: 120000 });
-      // Host → p1; carry code in URL
       navigate(`/carMaker?code=${encodeURIComponent(lobby.code)}&role=p1`);
     } catch (e) {
-      setErr('Nobody joined in time.');
-      setMode('host');
+      console.error('Host error:', e);
+      if (e.message.includes('connect') || e.message.includes('server')) {
+        setErr('Could not connect to multiplayer server. Make sure the lobby server is running on localhost:8080');
+      } else {
+        setErr(e.message || 'Nobody joined in time.');
+      }
+      setMode('choose');
     }
   }
 
   return (
-    <div className="relative">
-      <div className={`flex items-center transition-all duration-300 ${containerStyle}`}>
-        {/* IDLE */}
-        {mode === 'idle' && (
-          <Button onClick={onStart} className="min-w-[170px]">Start Race</Button>
-        )}
+    <div ref={anchorRef} className="relative inline-block align-middle">
+      {/* This is the only thing that takes layout space */}
+      <Button onClick={onStart} className="min-w-[170px]">Start Race</Button>
 
-        {/* SPLIT: Join | Host */}
-        {mode === 'choose' && (
-          <>
-            <Button onClick={onJoin} className="flex-1">Join</Button>
-            <Button variant="lime" onClick={onHost} className="flex-1">Host</Button>
-            <button onClick={reset} className="ml-2 text-xs text-slate-300 hover:text-white">Cancel</button>
-          </>
-        )}
-
-        {/* JOIN: enter code */}
-        {mode === 'join' && (
-          <div className="flex items-center gap-2 w-full">
-            <input
-              autoFocus
-              className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/15 focus:border-fuchsia-400/60 outline-none font-mono tracking-widest uppercase"
-              placeholder="ENTER CODE"
-              value={code}
-              onChange={(e)=>setCode(e.target.value.toUpperCase())}
-              maxLength={10}
-            />
-            <Button onClick={onJoinGo} className="min-w-[110px]">Join</Button>
-            <button onClick={reset} className="text-xs text-slate-300 hover:text-white">Back</button>
-          </div>
-        )}
-
-        {/* JOIN: searching */}
-        {mode === 'join-search' && (
-          <div className="flex items-center gap-3 w-full">
-            <div className="h-5 w-5 rounded-full border-2 border-fuchsia-400 border-t-transparent animate-spin" />
-            <div className="text-sm text-slate-300">Looking for host <span className="font-mono">{code}</span>…</div>
-            <button onClick={reset} className="ml-auto text-xs text-slate-300 hover:text-white">Cancel</button>
-          </div>
-        )}
-
-        {/* HOST: show/share code + wait */}
-        {mode === 'host' && (
-          <div className="flex items-center gap-3 w-full">
-            <div className="text-sm text-slate-300">Your code:</div>
-            <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 font-mono text-lg tracking-widest">{code}</div>
-            <Button variant="lime" onClick={onHost} className="ml-auto">Re-Host</Button>
-            <button onClick={reset} className="text-xs text-slate-300 hover:text-white">Cancel</button>
-          </div>
-        )}
-
-        {mode === 'host-wait' && (
-          <div className="flex items-center gap-3 w-full">
-            <div className="text-sm text-slate-300">Share this code:</div>
-            <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 font-mono text-lg tracking-widest">{code}</div>
-            <button
-              onClick={() => navigator.clipboard.writeText(
-                `${window.location.origin}/carMaker?code=${encodeURIComponent(code)}&role=p2`
-              )}
-              className="text-xs px-2 py-1 rounded-lg border border-white/15 hover:border-white/40"
-            >
-              Copy invite
-            </button>
-            <div className="flex items-center gap-2 ml-auto">
-              <div className="h-5 w-5 rounded-full border-2 border-lime-400 border-t-transparent animate-spin" />
-              <div className="text-sm text-slate-300">Waiting for a player…</div>
+      {/* Bigger dropdown (absolute so layout doesn't grow) */}
+      {mode !== 'idle' && (
+        <div
+          className={[
+            'absolute left-1/2 -translate-x-1/2 mt-2 z-30 box-border',
+            'rounded-2xl border border-white/15 bg-black/90 backdrop-blur',
+            // WIDER: scales up with breakpoint; still capped by viewport on mobile
+            'w-80 sm:w-96 md:w-[28rem] max-w-[calc(100vw-2rem)]',
+            'shadow-[0_10px_30px_rgba(168,85,247,.25)] p-4 sm:p-5',
+            'overflow-hidden',
+            // pop-down animation
+            'transition-all duration-300 ease-out opacity-100 translate-y-0 scale-100',
+          ].join(' ')}
+        >
+          {/* CHOOSE */}
+          {mode === 'choose' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Button onClick={onJoinClick} size="md">Join</Button>
+              <Button onClick={onHostClick} size="md" variant="lime">Host</Button>
             </div>
-            <button onClick={reset} className="text-xs text-slate-300 hover:text-white">Cancel</button>
-          </div>
-        )}
-      </div>
+          )}
 
-      {err && <div className="mt-2 text-xs text-rose-300">{err}</div>}
+          {/* JOIN input */}
+          {mode === 'join' && (
+            <div className="flex items-center gap-3 min-w-0">
+              <input
+                autoFocus
+                className="w-0 flex-1 min-w-0 px-3 py-2 rounded-xl bg-white/10 border border-white/15 focus:border-fuchsia-400/60 outline-none font-mono tracking-widest uppercase text-sm"
+                placeholder="ENTER CODE"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                maxLength={10}
+              />
+              <Button onClick={onJoinGo} size="md" className="shrink-0">Join</Button>
+            </div>
+          )}
+
+          {/* JOIN searching */}
+          {mode === 'join-search' && (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-5 w-5 rounded-full border-2 border-fuchsia-400 border-t-transparent animate-spin shrink-0" />
+              <div className="text-sm text-slate-300 min-w-0">Looking for host <span className="font-mono">{code}</span>…</div>
+            </div>
+          )}
+
+          {/* HOST waiting — wider, wraps if needed */}
+          {mode === 'host-wait' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3 min-w-0">
+                <div className="text-xs text-slate-300 shrink-0">Share Code</div>
+                <div
+                  className={[
+                    'px-3 py-2 rounded-lg bg-white/10 border border-white/15',
+                    'font-mono text-lg md:text-xl tracking-widest',
+                    'flex-1 min-w-[10rem] text-center select-all',
+                  ].join(' ')}
+                  title={code}
+                >
+                  {code}
+                </div>
+                <button
+                  onClick={() => {
+                    const joinUrl = `${window.location.origin}/carMaker?code=${encodeURIComponent(code)}&role=p2`;
+                    navigator.clipboard.writeText(joinUrl).then(() => {
+                      // Could add a toast notification here
+                      console.log('Join link copied to clipboard');
+                    }).catch(() => {
+                      // Fallback for older browsers
+                      const textArea = document.createElement('textarea');
+                      textArea.value = joinUrl;
+                      document.body.appendChild(textArea);
+                      textArea.select();
+                      document.execCommand('copy');
+                      document.body.removeChild(textArea);
+                    });
+                  }}
+                  className="text-[11px] px-3 py-1 rounded-lg border border-white/15 hover:border-white/40 shrink-0"
+                >
+                  Copy Link
+                </button>
+              </div>
+
+              {/* Status and instructions */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-4 rounded-full border-2 border-lime-400 border-t-transparent animate-spin" />
+                  <div className="text-xs text-slate-300">Waiting for player to join...</div>
+                </div>
+                <button
+                  onClick={closeAll}
+                  className="text-xs px-2 py-1 rounded border border-white/15 hover:border-white/40 text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-400 text-center">
+                Share the code <span className="font-mono text-fuchsia-300">{code}</span> with your friend, or send them the copied link!
+              </div>
+            </div>
+          )}
+
+          {/* error line */}
+          {err && <div className="mt-3 text-[12px] text-rose-300 break-words">{err}</div>}
+        </div>
+      )}
     </div>
   );
 }

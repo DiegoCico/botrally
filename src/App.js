@@ -1,26 +1,44 @@
-import { BrowserRouter, Router, Routes, Route } from 'react-router-dom';
-import TrackViewerPage from './pages/TrackViewer';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
 import Home from './pages/Home';
+import TrackViewerPage from './pages/TrackViewer';
 import CarMaker from './pages/CarMaker';
 import CarDemoPage from './pages/CarDemoPage';
-import logo from './logo.svg';
 import CarViewerPage from './pages/CarViewer';
 import CarBlocksPage from './pages/CarBlocksPage';
 import './App.css';
+
+// Temporary stubs so /race and /race/ai don’t 404.
+// Replace these with your real pages when ready.
+const RacePage = () => <div className="p-6 text-slate-200">Race (player vs player) — coming soon.</div>;
+const AIRacePage = () => <div className="p-6 text-slate-200">Race with AI — coming soon.</div>;
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Home */}
         <Route path="/" element={<Home />} />
+
+        {/* Pages you already have */}
         <Route path="/trackViewer" element={<TrackViewerPage />} />
-        <Route path='/carMaker' element={<CarMaker />} />
-        <Route path='/carViewer' element={<CarViewerPage />} />
+        <Route path="/carViewer" element={<CarViewerPage />} />
         <Route path="/carDemo" element={<CarDemoPage />} />
-        <Route path='/carBlocks' element={<CarBlocksPage />} />
+        <Route path="/carBlocks" element={<CarBlocksPage />} />
+
+        {/* Needed for StartRaceCTA navigation with ?code=...&role=p1|p2 */}
+        <Route path="/carMaker" element={<CarMaker />} />
+
+        {/* AI option & quick race buttons from Home */}
+        <Route path="/race" element={<RacePage />} />
+        <Route path="/race/ai" element={<AIRacePage />} />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
-  )
+  );
 }
 
 export default App;

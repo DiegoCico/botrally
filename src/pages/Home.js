@@ -2,6 +2,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import HeroKartShowcase from '../components/HeroKartShowcase';
+import StartRaceCTA from '../components/StartRaceCTA';
 
 /* --------------------------- Tiny UI Primitives --------------------------- */
 const Button = ({ onClick, children, variant = 'neon', size = 'lg', className = '' }) => {
@@ -82,6 +83,11 @@ export default function Home() {
   const navigate = useNavigate();
   const go = (r) => () => navigate(r);
 
+  const scrollToStartRace = () => {
+    const el = document.getElementById('start-race-cta');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   return (
     <>
       <FX />
@@ -105,7 +111,8 @@ export default function Home() {
               <Button variant="ghost" onClick={go('/docs')}>Docs</Button>
               <Button variant="ghost" onClick={go('/leaderboard')}>Leaderboard</Button>
               <Button variant="ghost" onClick={go('/garage')}>Garage</Button>
-              <Button variant="lime" onClick={go('/race')}>Play</Button>
+              {/* Changed: Play now scrolls to the StartRaceCTA */}
+              <Button variant="lime" onClick={scrollToStartRace}>Play</Button>
             </nav>
           </div>
         </header>
@@ -132,8 +139,9 @@ export default function Home() {
                 Beat bots, climb ladders, and pick up CS concepts as you go.
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Button onClick={go('/carMaker')} className="min-w-[160px]">Start Race</Button>
+              {/* Wrapped CTA in an anchor div so the nav can scroll here */}
+              <div id="start-race-cta" className="mt-6 flex flex-wrap gap-3">
+                <StartRaceCTA />
                 <Button variant="lime" onClick={go('/race/ai')}>Race with AI</Button>
                 <Button variant="ghost" onClick={go('/docs/algorithms')}>How it works</Button>
               </div>
@@ -159,10 +167,8 @@ export default function Home() {
             <div className="cabinet border border-fuchsia-500/30 bg-black rounded-3xl h-[420px] md:h-[480px]">
               <HeroKartShowcase />
               {/* HUD */}
-              <div className="pointer-events-none absolute top-3 left-3 flex gap-2">
-              </div>
-              <div className="pointer-events-none absolute bottom-3 right-4 text-right">
-              </div>
+              <div className="pointer-events-none absolute top-3 left-3 flex gap-2"></div>
+              <div className="pointer-events-none absolute bottom-3 right-4 text-right"></div>
             </div>
           </section>
 

@@ -117,7 +117,6 @@ export default function CarMaker() {
           <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg animate-pulse"><svg width="22" height="22" viewBox="0 0 24 24" stroke="white" fill="none" strokeWidth="2"><path d="M7 17h10" /><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M3 12l2-4c.3-.6.9-1 1.6-1h6c.6 0 1.3.3 1.7.7L16 10c0 0 3 .6 4.5 1.1 1 .3 1.5 1.1 1.5 2v3c0 .6-.4 1-1 1h-2"/></svg></div>
           <div className="text-2xl font-black tracking-widest">BotRally</div>
         </div>
-        <nav className="flex items-center gap-3"><Button variant="ghost" onClick={() => navigate('/')}>Menu</Button><Button variant="lime" onClick={() => navigate('/race')}>Race</Button></nav>
       </header>
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-10 md:pt-14 grid md:grid-cols-[1.2fr_.8fr] gap-8">
         <div className="flex flex-col gap-6">

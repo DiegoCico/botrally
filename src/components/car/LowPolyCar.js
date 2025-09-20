@@ -9,6 +9,8 @@ function createDucktailSpoiler(materials) {
   return spoiler;
 }
 
+
+
 function createGtWingSpoiler(materials) {
   const wing = new THREE.Group();
   const uprightL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 0.1), materials.trim);
@@ -22,6 +24,30 @@ function createGtWingSpoiler(materials) {
   wing.add(uprightL, uprightR, blade);
   return wing;
 }
+
+export function buildWheel(materials, type = 'default') {
+    let radius = 0.55, width = 0.35;
+
+    if (type === 'sporty') {
+      radius = 0.5;
+      width = 0.25;
+    } else if (type === 'offroad') {
+      radius = 0.65;
+      width = 0.45;
+    }
+
+    const gTire = new THREE.CylinderGeometry(radius, radius, width, 18);
+    const gRim  = new THREE.CylinderGeometry(radius * 0.62, radius * 0.62, width * 1.02, 10);
+
+    const tire = new THREE.Mesh(gTire, materials.tire);
+    tire.rotation.x = Math.PI / 2;
+    const rim = new THREE.Mesh(gRim, materials.rim);
+    rim.rotation.x = Math.PI / 2;
+
+    const w = new THREE.Group();
+    w.add(tire, rim);
+    return w;
+  }
 
 export function buildLowPolyCar({
   bodyColor   = 0xc0455e,
@@ -113,6 +139,13 @@ export function buildLowPolyCar({
   group.add(spoilerContainer);
   
   // --- Wheels ---
+  const wheelFL = buildWheel(wheelType); wheelFL.position.set(1.35, 0.55, 0.95);
+  const wheelFR = buildWheel(wheelType); wheelFR.position.set(1.35, 0.55, -0.95);
+  const wheelRL = buildWheel(wheelType); wheelRL.position.set(-1.35, 0.55, 0.95);
+  const wheelRR = buildWheel(wheelType); wheelRR.position.set(-1.35, 0.55, -0.95);
+
+  const wheels = { FL: wheelFL, FR: wheelFR, RL: wheelRL, RR: wheelRR };
+  group.add(wheelFL, wheelFR, wheelRL, wheelRR);
   
   // --- API Functions ---
   function setBodyColor(color) {
@@ -158,5 +191,4 @@ export function fitCarOnGround(group) {
   group.position.x -= center.x;
   group.position.z -= center.z;
 }
-
 

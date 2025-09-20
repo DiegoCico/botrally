@@ -2,8 +2,37 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CarCanvas from '../components/car/CarCanvas';
 import CarPreview from '../components/car/CarPreview';
+import WheelPreview from '../components/car/WheelPreview'
 
-// --- Icon Components (Inline SVG) ---
+const FX = () => (
+  <style>{`
+    html, body, #root { background:#000 }
+    .arcade-grid {
+      position:absolute; inset:0; pointer-events:none;
+      background:
+        radial-gradient(60% 60% at 50% 10%, rgba(99,102,241,.18), transparent 55%),
+        radial-gradient(40% 60% at 80% 10%, rgba(236,72,153,.16), transparent 60%),
+        repeating-linear-gradient(to right, rgba(255,255,255,.04) 0 1px, transparent 1px 40px),
+        repeating-linear-gradient(to bottom, rgba(255,255,255,.03) 0 1px, transparent 1px 40px);
+      mask: radial-gradient(80% 80% at 50% 30%, #000 40%, transparent);
+    }
+    .scan {
+      position:absolute; inset:0; pointer-events:none;
+      background: linear-gradient(180deg, transparent, rgba(255,255,255,.05), transparent);
+      mix-blend-mode: overlay; animation: scanMove 7s linear infinite;
+    }
+    @keyframes scanMove { 0%{transform:translateY(-100%)} 100%{transform:translateY(100%)} }
+    .title-glow {
+      text-shadow:
+        0 0 10px rgba(99,102,241,.7),
+        0 0 24px rgba(168,85,247,.5),
+        0 0 60px rgba(236,72,153,.3);
+    }
+  `}</style>
+);
+
+// --- Icon Components (Inline SVG) --
+
 const BodyIcon = ({ className }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M18.5 18.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
@@ -55,26 +84,50 @@ const ArrowLeftIcon = ({ className }) => (
 
 
 // --- UI Components ---
-const Card = ({ children, className, onClick }) => (
-  <div
-    className={`p-4 bg-slate-800/80 border-2 rounded-2xl backdrop-blur-sm transition-all duration-200 shadow-lg cursor-pointer ${className}`}
-    onClick={onClick}
-  >
+// const Card = ({ children, className, onClick }) => (
+//   <div
+//     className={`p-4 bg-slate-800/80 border-2 rounded-2xl backdrop-blur-sm transition-all duration-200 shadow-lg cursor-pointer ${className}`}
+//     onClick={onClick}
+//   >
+//     {children}
+//   </div>
+// );
+const Card = ({ children, className = '', onClick }) => (
+  <div onClick={onClick} className={`p-5 md:p-6 bg-white/5 border rounded-3xl backdrop-blur-sm hover:translate-y-[-2px] hover:shadow-xl transition-all ${className}`}>
     {children}
   </div>
 );
 
-const Button = ({ onClick, children, variant = 'default', className }) => {
-  const baseClasses = 'font-bold rounded-xl transition-all duration-200 shadow-lg inline-flex items-center justify-center text-center px-6 py-3';
-  const variantClasses = {
-    default: 'bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105',
-    outline: 'border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white bg-transparent',
-    ghost: 'text-slate-300 hover:bg-slate-700/50 bg-transparent shadow-none',
+
+
+// const Button = ({ onClick, children, variant = 'default', className }) => {
+//   const baseClasses = 'font-bold rounded-xl transition-all duration-200 shadow-lg inline-flex items-center justify-center text-center px-6 py-3';
+//   const variantClasses = {
+//     default: 'bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105',
+//     outline: 'border-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white bg-transparent',
+//     ghost: 'text-slate-300 hover:bg-slate-700/50 bg-transparent shadow-none',
+//   };
+//   return (
+//     <button onClick={onClick} className={`${baseClasses} ${variantClasses[variant]} ${className}`}>
+//       {children}
+//     </button>
+//   );
+// };
+const Button = ({ onClick, children, variant = 'neon', size = 'lg', className = '' }) => {
+  const base = 'inline-flex items-center justify-center font-extrabold rounded-2xl transition-all duration-200';
+  const sizes = { md: 'px-5 py-2.5 text-sm', lg: 'px-7 py-3.5 text-base md:text-lg' };
+  const variants = {
+    neon:
+      'relative text-white border-2 border-fuchsia-500/60 hover:border-fuchsia-300 ' +
+      'shadow-[0_0_28px_rgba(236,72,153,.35)] hover:shadow-[0_0_40px_rgba(236,72,153,.55)] ' +
+      'after:absolute after:inset-0 after:rounded-2xl after:bg-gradient-to-r after:from-fuchsia-500/20 after:to-indigo-500/20 after:-z-10',
+    ghost: 'text-slate-200 hover:text-white hover:scale-105',
+    lime:
+      'text-black bg-lime-400 hover:bg-lime-300 border-2 border-lime-300 ' +
+      'shadow-[0_0_20px_rgba(163,230,53,.35)]'
   };
   return (
-    <button onClick={onClick} className={`${baseClasses} ${variantClasses[variant]} ${className}`}>
-      {children}
-    </button>
+    <button onClick={onClick} className={[base, sizes[size], variants[variant], className].join(' ')}>{children}</button>
   );
 };
 
@@ -150,81 +203,123 @@ export default function CarMaker() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-50 font-sans flex flex-col md:flex-row">
-      {/* --- Left Side: 3D Viewer --- */}
-      <main className="flex-grow md:w-2/3 p-4 md:p-8 flex flex-col relative">
-        <div className="absolute top-4 left-4 z-10">
-          <Button onClick={() => navigate('/')} variant="ghost">
-            <ArrowLeftIcon className="w-5 h-5 mr-2" /> Back to Menu
-          </Button>
+  <>
+    <FX />
+    <div className="relative min-h-screen text-slate-100 font-sans selection:bg-fuchsia-500/40">
+      {/* Arcade Background Effects */}
+      <div className="arcade-grid" />
+      <div className="scan" />
+
+      {/* Top Bar */}
+      <header className="relative z-10 flex justify-between items-center max-w-7xl mx-auto px-6 py-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg animate-pulse">
+            <svg width="22" height="22" viewBox="0 0 24 24" stroke="white" fill="none" strokeWidth="2">
+              <path d="M7 17h10" />
+              <circle cx="7" cy="17" r="2"/>
+              <circle cx="17" cy="17" r="2"/>
+              <path d="M3 12l2-4c.3-.6.9-1 1.6-1h6c.6 0 1.3.3 1.7.7L16 10c0 0 3 .6 4.5 1.1 1 .3 1.5 1.1 1.5 2v3c0 .6-.4 1-1 1h-2"/>
+            </svg>
+          </div>
+          <div className="text-2xl font-black tracking-widest">BotRally</div>
         </div>
-        <div className="flex-grow flex items-center justify-center">
-          <div className="w-full h-full max-w-4xl max-h-[500px] bg-slate-800/50 rounded-3xl border-2 border-slate-700 flex items-center justify-center">
+        <nav className="flex items-center gap-3">
+          <Button variant="ghost" onClick={() => navigate('/')}>Menu</Button>
+          <Button variant="lime" onClick={() => navigate('/race')}>Race</Button>
+        </nav>
+      </header>
+
+      {/* Main Content */}
+      <main className="relative z-10 max-w-7xl mx-auto px-6 pt-10 md:pt-14 grid md:grid-cols-[1.2fr_.8fr] gap-8">
+        {/* Left: 3D Viewer */}
+        <div className="flex flex-col gap-6">
+          <div className="w-full h-[500px] md:h-[600px] bg-slate-800/20 border border-fuchsia-500/30 rounded-3xl flex items-center justify-center shadow-lg">
             <CarCanvas
               bodyColor={partsData.body.find(b => b.id === selectedParts.body).bodyColor}
               wheelType={selectedParts.wheels}
             />
           </div>
+          <div className="text-center">
+            <h1 className="title-glow text-4xl font-black mb-1">
+              {partsData.body.find(b => b.id === selectedParts.body).name}
+            </h1>
+            <p className="text-fuchsia-300 font-bold">Standard Edition</p>
+          </div>
         </div>
-        <div className="flex-shrink-0 p-4 text-center">
-          <h1 className="text-3xl font-black">{partsData.body.find(b => b.id === selectedParts.body).name}</h1>
-          <p className="text-indigo-400">Standard Edition</p>
-        </div>
+
+        {/* Right: Customization Panel */}
+        <aside className="flex flex-col gap-6">
+          <Card className="text-center border-white/10">
+            <h2 className="text-2xl font-bold mb-4">Customize Your Kart</h2>
+
+            {/* Category Selector */}
+            <div className="grid grid-cols-4 gap-2 bg-slate-800/20 p-2 rounded-xl">
+              {categories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`flex flex-col items-center p-2 rounded-lg transition-colors ${
+                    activeCategory === cat.id
+                      ? 'bg-fuchsia-500/40 shadow-[0_0_16px_rgba(236,72,153,.4)]'
+                      : 'hover:bg-slate-700/40'
+                  }`}
+                >
+                  {cat.icon}
+                  <span className="text-xs mt-1">{cat.name}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Parts Grid */}
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              {partsData[activeCategory].map(part => (
+                <Card
+                  key={part.id}
+                  onClick={() => handleSelectPart(activeCategory, part.id)}
+                  className={`cursor-pointer ${
+                    selectedParts[activeCategory] === part.id
+                      ? 'border-fuchsia-400/80 shadow-[0_0_16px_rgba(236,72,153,.4)]'
+                      : 'border-white/10 hover:border-fuchsia-300/60'
+                  }`}
+                >
+                  <div className="flex flex-col items-center text-center">
+                    {activeCategory === 'body' ? (
+                      <CarPreview bodyColor={part.bodyColor} />
+                    ) : activeCategory === 'wheels' ? (
+                      <WheelPreview wheelType={part.id} />
+                    ) : (
+                      <span className="text-4xl mb-2">{part.icon}</span>
+                    )}
+                    <p className="font-black text-fuchsia-300 mt-1">{part.name}</p>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Performance Stats */}
+            <div className="mt-4 space-y-3">
+              <h3 className="text-xl font-black text-center title-glow mb-2">Performance Stats</h3>
+              <StatBar label="Top Speed" value={totalStats.speed} />
+              <StatBar label="Acceleration" value={totalStats.acceleration} />
+              <StatBar label="Handling" value={totalStats.handling} />
+            </div>
+
+            {/* Action Button */}
+            <div className="mt-6">
+              <Button className="w-full">Save & Race 🏁</Button>
+            </div>
+          </Card>
+        </aside>
       </main>
 
-      {/* --- Right Side: Customization Panel --- */}
-      <aside className="w-full md:w-1/3 bg-slate-900/80 border-l-2 border-slate-800 p-6 flex flex-col gap-6 overflow-y-auto">
-        <h2 className="text-2xl font-bold text-center">Customize Your Kart</h2>
-
-        {/* Category Selector */}
-        <div className="grid grid-cols-4 gap-2 bg-slate-800 p-2 rounded-xl">
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`flex flex-col items-center p-2 rounded-lg transition-colors ${activeCategory === cat.id ? 'bg-indigo-600' : 'hover:bg-slate-700'}`}
-            >
-              {cat.icon}
-              <span className="text-xs mt-1">{cat.name}</span>
-            </button>
-          ))}
+      {/* Footer */}
+      <footer className="mt-12 border-t border-white/10 text-center py-6">
+        <div className="text-slate-400">
+          Build. Customize. Race. <span className="text-fuchsia-400 font-bold">BotRally</span>
         </div>
-
-        {/* Parts Grid */}
-        <div className="flex-grow grid grid-cols-2 gap-4">
-          {partsData[activeCategory].map(part => (
-            <Card
-              key={part.id}
-              onClick={() => handleSelectPart(activeCategory, part.id)}
-              className={selectedParts[activeCategory] === part.id ? 'border-indigo-500' : 'border-slate-700 hover:border-slate-500'}
-            >
-              <div className="flex flex-col items-center text-center">
-                {activeCategory === 'body' ? (
-                  <CarPreview bodyColor={part.bodyColor} />
-                ) : activeCategory === 'wheels' ? (
-                  <span className="text-4xl mb-2">{part.icon}</span>
-                ) : (
-                  <span className="text-4xl mb-2">{part.icon}</span>
-                )}
-                <p className="font-bold">{part.name}</p>
-              </div>
-            </Card>
-          ))}
-        </div>
-
-        {/* Performance Stats */}
-        <div className="flex-shrink-0 space-y-4">
-          <h3 className="text-xl font-bold text-center">Performance Stats</h3>
-          <StatBar label="Top Speed" value={totalStats.speed} />
-          <StatBar label="Acceleration" value={totalStats.acceleration} />
-          <StatBar label="Handling" value={totalStats.handling} />
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex-shrink-0 mt-4">
-          <Button className="w-full">Save & Race 🏁</Button>
-        </div>
-      </aside>
+      </footer>
     </div>
-  );
+  </>
+);
+
 }

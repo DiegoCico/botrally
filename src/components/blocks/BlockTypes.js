@@ -1,39 +1,67 @@
 // src/blocks/BlockTypes.js
+export const SensorSide = ['forward', 'left', 'right'];
+export const Metric = ['min', 'avg'];
+export const Op = ['<', '<=', '>', '>='];
+export const TurnDir = ['none', 'left', 'right'];
+
 export const BLOCK_TEMPLATES = {
-    RULE: {
-      type: 'RULE',
-      label: 'Rule',
-      // default condition and action
-      data: { condition: 'f_min < 10', throttle: '0.2', steer: '(r_min - l_min) * 0.06' }
-    },
-    CONDITION: {
-      type: 'CONDITION',
-      label: 'Condition',
-      data: { condition: 'f_min < 10' }
-    },
-    ACTION: {
-      type: 'ACTION',
-      label: 'Action',
-      data: { throttle: '0.5', steer: '0' }
-    },
-    // helpers the user can drag as starting points
-    AVOID: {
-      type: 'RULE',
-      label: 'Avoid Obstacle',
-      data: { condition: 'f_min < 10', throttle: '0.2', steer: '(r_min - l_min) * 0.06' }
-    },
-    CRUISE: {
-      type: 'RULE',
-      label: 'Cruise',
-      data: { condition: 'f_min >= 20', throttle: '1.0', steer: '(r_min - l_min) * 0.02' }
-    },
-    SLOW_ZONE: {
-      type: 'RULE',
-      label: 'Slow Zone',
-      data: { condition: 'f_min >= 10 && f_min < 20', throttle: '0.6', steer: '(r_min - l_min) * 0.03' }
+  RULE_GENERIC: {
+    type: 'RULE',
+    label: 'If sensor then act',
+    data: {
+      cond: { sensor: 'forward', metric: 'min', op: '<', value: 10 },
+      act:  { accel: 0.6, turn: 'none', steer: 0.0 }  // accel: 0..1 (− is brake if needed later)
     }
-  };
-  
-  // Simple ID helper
-  export const uid = () => Math.random().toString(36).slice(2, 9);
-  
+  },
+  RULE_ALWAYS: {
+    type: 'RULE',
+    label: 'Always do',
+    data: {
+      cond: { sensor: 'forward', metric: 'min', op: '>=', value: -Infinity, always: true },
+      act:  { accel: 0.5, turn: 'none', steer: 0.0 }
+    }
+  },
+  PRESET_AVOID: {
+    type: 'RULE',
+    label: 'Avoid obstacle',
+    data: {
+      cond: { sensor: 'forward', metric: 'min', op: '<', value: 10 },
+      act:  { accel: 0.2, turn: 'auto', steer: 0.6 } // auto = choose freer side
+    }
+  },
+  PRESET_CRUISE: {
+    type: 'RULE',
+    label: 'Cruise (open road)',
+    data: {
+      cond: { sensor: 'forward', metric: 'min', op: '>=', value: 20 },
+      act:  { accel: 1.0, turn: 'none', steer: 0.0 }
+    }
+  },
+  PRESET_BRAKE: {
+    type: 'RULE',
+    label: 'Brake if too close',
+    data: {
+      cond: { sensor: 'forward', metric: 'min', op: '<', value: 6 },
+      act:  { accel: 0.0, turn: 'none', steer: 0.0 }
+    }
+  },
+  PRESET_NUDGE_LEFT: {
+    type: 'RULE',
+    label: 'Nudge left when right is tighter',
+    data: {
+      cond: { sensor: 'right', metric: 'min', op: '<', value: 8 },
+      act:  { accel: 0.5, turn: 'left', steer: 0.4 }
+    }
+  },
+  PRESET_NUDGE_RIGHT: {
+    type: 'RULE',
+    label: 'Nudge right when left is tighter',
+    data: {
+      cond: { sensor: 'left', metric: 'min', op: '<', value: 8 },
+      act:  { accel: 0.5, turn: 'right', steer: 0.4 }
+    }
+  }
+};
+
+// simple ids for canvas blocks
+export const uid = () => Math.random().toString(36).slice(2, 9);

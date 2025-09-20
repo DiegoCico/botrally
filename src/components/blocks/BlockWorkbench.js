@@ -1,27 +1,22 @@
 // src/components/blocks/BlockWorkbench.js
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import InventoryPanel from './InventoryPanel';
-import WorkspacePanel from './WorkspacePanel';
+import BlockCanvasPanel from './BlockCanvasPanel';
 import { compileBlocksToProgram } from './compileProgram';
 
 export default function BlockWorkbench({ onProgramCompiled }) {
-  const [blocks, setBlocks] = useState(() => []);
+  const [blocks, setBlocks] = useState([]);
 
   const handleCompile = () => {
-    const program = compileBlocksToProgram(blocks);
+    const ordered = [...blocks].sort((a, b) => (a.y ?? 0) - (b.y ?? 0) || (a.x ?? 0) - (b.x ?? 0));
+    const program = compileBlocksToProgram(ordered);
     onProgramCompiled?.(program);
   };
 
-  const count = useMemo(() => blocks.length, [blocks.length]);
-
   return (
-    <div style={styles.root}>
+    <div style={{ display:'flex', width:'100%', height:'100%', borderTop:'1px solid #2a2d34' }}>
       <InventoryPanel />
-      <WorkspacePanel blocks={blocks} setBlocks={setBlocks} onCompile={handleCompile} />
+      <BlockCanvasPanel blocks={blocks} setBlocks={setBlocks} onCompile={handleCompile} />
     </div>
   );
 }
-
-const styles = {
-  root: { display: 'flex', width: '100%', height: '100%', borderTop: '1px solid #2a2d34' }
-};

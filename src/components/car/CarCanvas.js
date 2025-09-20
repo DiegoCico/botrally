@@ -1,40 +1,30 @@
 // src/components/car/CarCanvas.js
-import React, { useRef, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import React, { useMemo } from 'react';
+import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { buildLowPolyCar, fitCarOnGround } from './LowPolyCar';
 
 function Car({ bodyColor, wheelType }) {
-  const carRef = useRef();
+  // Build a fresh car group whenever props change.
+  const carGroup = useMemo(() => {
+    const { group, wheels } = buildLowPolyCar({ bodyColor, scale: 1 });
 
-  useEffect(() => {
-    if (!carRef.current) return;
-
-    // Build car
-    const { group, wheels, setBodyColor } = buildLowPolyCar({ bodyColor, scale: 1 });
+    // Place the car on the ground once.
     fitCarOnGround(group);
 
-    // Remove existing wheels
-    Object.values(wheels).forEach(wheel => group.remove(wheel));
-
-    // Add wheels according to wheelType
+    // Scale existing wheel meshes IN-PLACE (no cloning, no add/remove).
     const scaleMap = { standard: 1, offroad: 1.1, slim: 0.8 };
-    Object.entries(wheels).forEach(([key, wheel]) => {
-      const w = wheel.clone();
-      const s = scaleMap[wheelType] || 1;
-      w.scale.setScalar(s);
-      group.add(w);
+    const s = scaleMap[wheelType] ?? 1;
+    Object.values(wheels).forEach((wheel) => {
+      // Defend against undefined wheels
+      if (wheel && wheel.scale) wheel.scale.setScalar(s);
     });
 
-    // Add car group to scene
-    carRef.current.add(group);
-
-    return () => {
-      carRef.current.remove(group);
-    };
+    return group;
   }, [bodyColor, wheelType]);
 
-  return <group ref={carRef} />;
+  // No refs, no effects, no manual cleanup.
+  return <primitive object={carGroup} />;
 }
 
 export default function CarCanvas({ bodyColor = 0xc0455e, wheelType = 'standard' }) {
@@ -50,8 +40,6 @@ export default function CarCanvas({ bodyColor = 0xc0455e, wheelType = 'standard'
         castShadow
         position={[5, 10, 5]}
         intensity={1.0}
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
       />
 
       {/* Ground */}
@@ -65,12 +53,12 @@ export default function CarCanvas({ bodyColor = 0xc0455e, wheelType = 'standard'
 
       {/* Controls */}
       <OrbitControls
-        enableZoom={true}
+        enableZoom
         enablePan={false}
         maxPolarAngle={Math.PI / 2}
         minPolarAngle={0}
-        maxDistance={10}   // limit zoom
-        minDistance={3}    // limit zoom
+        maxDistance={10}
+        minDistance={3}
       />
     </Canvas>
   );

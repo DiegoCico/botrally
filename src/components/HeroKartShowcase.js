@@ -31,10 +31,13 @@ export default function HeroKartShowcase() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0a0a);
 
-    // --- Camera: close, slight tilt ---
-    const camera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 0.1, 8000);
-    const setCam = (y = 120, tilt = 0.28) => {
-      camera.position.set(0, y, y * 0.25);
+    // --- Camera: close, slight tilt, diagonal vantage ---
+    const camera = new THREE.PerspectiveCamera(85, container.clientWidth / container.clientHeight, 0.1, 8000);
+    const setCam = (y = 120, tilt = 0.28, diagonal = true) => {
+      // Diagonal view: sit along (-x, +z) so the track runs corner-to-corner.
+      const horiz = y * 0.35;
+      if (diagonal) camera.position.set(-horiz, y, horiz);
+      else camera.position.set(0, y, y * 0.25);
       camera.lookAt(0, 0, 0);
       camera.rotation.x -= tilt;
     };
@@ -47,8 +50,7 @@ export default function HeroKartShowcase() {
       hemiIntensity: 0.6,
       dirIntensity: 1.2
     });
-    // push ground slightly down to avoid z-fighting with road
-    if (env?.ground) env.ground.position.y = -0.05;
+    if (env?.ground) env.ground.position.y = -0.05; // avoid z-fighting
 
     const rim = new THREE.DirectionalLight(0xffffff, 0.35);
     rim.position.set(-300, 300, -200);
@@ -69,9 +71,13 @@ export default function HeroKartShowcase() {
 
     const curve = makeSmoothCurve(pts, { closed: true, smoothIter: 3, tension: 0.5 });
 
-    // --- Group that we can lift as one (road + line + cars) ---
+    // --- Group (road + line + cars) we can rotate & lift together ---
     const trackGroup = new THREE.Group();
     scene.add(trackGroup);
+
+    // Rotate ~45° around Y to lay the track diagonally across the screen.
+    const DIAGONAL_ROT = Math.PI * 0.5; // 45°
+    trackGroup.rotation.y = DIAGONAL_ROT;
 
     // Road
     const road = buildRoad({ curve, width: ROAD_WIDTH, segments: 2000, closed: true, rails: true });
@@ -86,7 +92,7 @@ export default function HeroKartShowcase() {
     racingLine.position.y += 0.03;
     trackGroup.add(racingLine);
 
-    // --- Auto-lift: ensure the WHOLE track sits above y=0 ---
+    // --- Auto-lift: keep everything above the floor ---
     const samples = 2048;
     let minY = Infinity;
     const tmp = new THREE.Vector3();
@@ -94,16 +100,18 @@ export default function HeroKartShowcase() {
       curve.getPoint(i / samples, tmp);
       if (tmp.y < minY) minY = tmp.y;
     }
-    const CLEARANCE = 0.06; // small positive margin above floor
+    const CLEARANCE = 0.06;
     const yOffset = minY < CLEARANCE ? CLEARANCE - minY : 0;
     if (yOffset !== 0) trackGroup.position.y += yOffset;
+    trackGroup.position.x -= 20; 
+    trackGroup.position.z += 10;
 
-    // --- Frame camera to track (stays close) ---
+    // --- Frame camera to track (stays close, diagonal) ---
     {
       const box = new THREE.Box3().setFromObject(roadObj);
       const size = box.getSize(new THREE.Vector3()).length();
-      const y = Math.max(90, Math.min(160, size * 0.35));
-      setCam(y);
+      const y = Math.max(90, Math.min(170, size * 0.36));
+      setCam(y, 0.30, true);
     }
 
     // --- Cars + brighter trails ---
@@ -139,13 +147,12 @@ export default function HeroKartShowcase() {
       const glow = new THREE.PointLight(color, 1.4, 40, 2.0);
       glow.position.set(0, 0.8, 0);
       car.add(glow);
-
       car.add(buildTrail(color));
 
       const u0 = i / NUM_CARS;
       const p0 = curve.getPointAt(u0);
       const t0 = curve.getTangentAt(u0);
-      car.position.copy(p0).add(new THREE.Vector3(0, yOffset, 0)); // lift by same offset
+      car.position.copy(p0).add(new THREE.Vector3(0, yOffset, 0));
       car.rotation.y = -Math.atan2(t0.x, t0.z);
 
       trackGroup.add(car);
@@ -163,7 +170,7 @@ export default function HeroKartShowcase() {
       });
     }
 
-    // simple passing/drafting
+    // Passing/drafting
     function updateRaceDynamics(time) {
       cars.sort((a, b) => a.s - b.s);
       for (let i = 0; i < cars.length; i++) {
@@ -216,7 +223,6 @@ export default function HeroKartShowcase() {
         const T = curve.getTangentAt(c.u).normalize();
         const R = new THREE.Vector3().crossVectors(T, new THREE.Vector3(0,1,0)).normalize();
 
-        // apply same global lift via trackGroup, but keep per-car lateral offset and a tiny hover
         c.mesh.position.set(P.x, P.y + yOffset + 0.04, P.z).addScaledVector(R, c.lateral);
         c.mesh.rotation.y = -Math.atan2(T.x, T.z);
 

@@ -8,12 +8,12 @@ import CarDemoPage from './pages/CarDemoPage';
 import CarViewerPage from './pages/CarViewer';
 import CarBlocksPage from './pages/CarBlocksPage';
 import MultiplayerRacePage from './pages/MultiplayerRacePage';
+import AIRacePage from './pages/AIRacePage';
 import './App.css';
 
 // Temporary stubs so /race and /race/ai don’t 404.
 // Replace these with your real pages when ready.
 const RacePage = () => <div className="p-6 text-slate-200">Race (player vs player) — coming soon.</div>;
-const AIRacePage = () => <div className="p-6 text-slate-200">Race with AI — coming soon.</div>;
 
 function App() {
   return (
@@ -37,6 +37,9 @@ function App() {
         
         {/* Multiplayer race */}
         <Route path="/multiplayerRace" element={<MultiplayerRacePage />} />
+        
+        {/* AI race */}
+        <Route path="/aiRace" element={<AIRacePage />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

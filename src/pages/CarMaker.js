@@ -83,7 +83,9 @@ export default function CarMaker() {
   const urlParams = new URLSearchParams(window.location.search);
   const lobbyCode = urlParams.get('code');
   const playerRole = urlParams.get('role'); // 'p1' (host) or 'p2' (joiner)
+  const aiMode = urlParams.get('mode') === 'ai'; // AI opponent mode
   const isMultiplayer = lobbyCode && playerRole;
+  const isAI = aiMode;
 
   const handleSelectPart = (category, partId) => {
     setSelectedParts(prev => ({ ...prev, [category]: partId }));
@@ -177,9 +179,24 @@ export default function CarMaker() {
                   </div>
                   <Button 
                     className="w-full" 
-                    onClick={() => navigate(`/multiplayerRace?code=${encodeURIComponent(lobbyCode)}&role=${playerRole}&car=${encodeURIComponent(JSON.stringify(selectedParts))}`)}
+                    onClick={() => navigate(`/carBlocks?code=${encodeURIComponent(lobbyCode)}&role=${playerRole}&car=${encodeURIComponent(JSON.stringify(selectedParts))}`)}
                   >
-                    Ready to Race! 🏁
+                    Code your car! 🏁
+                  </Button>
+                </div>
+              ) : isAI ? (
+                <div className="space-y-3">
+                  <div className="text-center text-sm text-slate-300">
+                    🤖 <span className="text-cyan-300 font-bold">AI Opponent Mode</span> 🤖
+                  </div>
+                  <div className="text-center text-xs text-slate-400">
+                    Code your algorithm and race against Cerebras AI
+                  </div>
+                  <Button 
+                    className="w-full" 
+                    onClick={() => navigate(`/carBlocks?mode=ai&car=${encodeURIComponent(JSON.stringify(selectedParts))}`)}
+                  >
+                    Code vs AI! 🤖
                   </Button>
                 </div>
               ) : (

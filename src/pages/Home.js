@@ -142,7 +142,7 @@ export default function Home() {
               {/* Wrapped CTA in an anchor div so the nav can scroll here */}
               <div id="start-race-cta" className="mt-6 flex flex-wrap gap-3">
                 <StartRaceCTA />
-                <Button variant="lime" onClick={go('/race/ai')}>Race with AI</Button>
+                <Button variant="lime" onClick={go('/carMaker?mode=ai')}>Race with AI</Button>
                 <Button variant="ghost" onClick={go('/docs/algorithms')}>How it works</Button>
               </div>
 

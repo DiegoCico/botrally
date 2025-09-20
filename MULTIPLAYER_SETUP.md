@@ -105,6 +105,17 @@ If players are on different networks, you may need to:
 
 ## Advanced Configuration
 
+### Cerebras AI Setup (Optional)
+For enhanced AI opponents, get a Cerebras API key:
+1. Go to https://cloud.cerebras.ai/
+2. Sign up and get your API key
+3. Update `.env` file:
+```bash
+REACT_APP_CEREBRAS_API_KEY=your_actual_api_key_here
+```
+
+If no API key is provided, the system uses fallback AI algorithms.
+
 ### Custom Server URL
 Set the `REACT_APP_LOBBY_SERVER` environment variable:
 ```bash
@@ -114,10 +125,12 @@ REACT_APP_LOBBY_SERVER=ws://your-server-ip:8080 npm start
 ### Production Deployment
 For production, deploy the lobby server to a cloud service and update the server URL accordingly.
 
-## Example Workflow
+## Example Workflows
+
+### Multiplayer (Player vs Player)
 
 1. **Player 1 (Host)**:
-   - Runs `npm run dev` on their computer (IP: 192.168.1.100)
+   - Runs `npm start` on their computer (IP: 192.168.1.100)
    - Goes to `http://localhost:3000`
    - Clicks "Start Race" → "Host"
    - Gets code "ABC123"
@@ -127,7 +140,27 @@ For production, deploy the lobby server to a cloud service and update the server
    - Goes to `http://192.168.1.100:3000`
    - Clicks "Start Race" → "Join"
    - Enters code "ABC123"
-   - Both players proceed to car customization and racing!
+
+3. **Both Players**:
+   - Customize their cars (body, wheels, engine, spoiler)
+   - Click "Code your car!" to go to the block programming interface
+   - Build their racing algorithms using Scratch-like blocks
+   - Click "Ready to Race!" when their algorithm is complete
+   - Wait for the other player to also be ready
+   - Automatically proceed to the multiplayer race when both are ready!
+
+### AI Mode (Player vs AI)
+
+1. **Single Player**:
+   - Runs `npm start` on their computer
+   - Goes to `http://localhost:3000`
+   - Clicks "Race with AI"
+   - Customizes their car (body, wheels, engine, spoiler)
+   - Clicks "Code vs AI!" to go to the block programming interface
+   - Builds their racing algorithm using Scratch-like blocks
+   - AI automatically generates a competing algorithm using Cerebras
+   - Click "Ready to Race AI!" when algorithm is complete
+   - Automatically proceed to AI race when both player and AI are ready!
 
 ## Notes
 

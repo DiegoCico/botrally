@@ -187,6 +187,15 @@ function handleLobbyMessage(ws, message) {
     return;
   }
   
+  // Store player status in lobby
+  if (data.type === 'player-status') {
+    if (!lobby.playerStatus) {
+      lobby.playerStatus = {};
+    }
+    lobby.playerStatus[data.playerRole] = data.status;
+    console.log(`Player ${data.playerRole} in lobby ${code} is now ${data.status}`);
+  }
+  
   // Broadcast message to all players in the lobby
   broadcastToLobby(code, {
     type: 'lobby-message',

@@ -1,4 +1,4 @@
-// src/pages/MultiplayerRacePage.js
+// src/pages/AIRacePage.js
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as THREE from 'three';
@@ -13,7 +13,6 @@ import { buildFlatTrack } from '../components/tracks/FlatTrack';
 import { buildHillyTrack } from '../components/tracks/HillyTrack';
 import { buildTechnicalTrack } from '../components/tracks/TechnicalTrack';
 import { addLightsAndGround } from '../components/tracks/TrackUtils';
-import { getLobbyClient } from '../net/websocket-lobby';
 
 const TRACKS = {
   flat: { name: 'Flat Track', builder: buildFlatTrack },
@@ -21,24 +20,26 @@ const TRACKS = {
   technical: { name: 'Technical Track', builder: buildTechnicalTrack }
 };
 
-export default function MultiplayerRacePage() {
+export default function AIRacePage() {
   const navigate = useNavigate();
   const mountRef = useRef(null);
   const rafRef = useRef(0);
   const [gameState, setGameState] = useState('waiting'); // waiting, racing, finished
   const [raceTime, setRaceTime] = useState(0);
-  const [playerPositions, setPlayerPositions] = useState({ p1: 0, p2: 0 });
+  const [playerPosition, setPlayerPosition] = useState(0);
+  const [aiPosition, setAiPosition] = useState(0);
   const [selectedTrack, setSelectedTrack] = useState('flat');
+  const [winner, setWinner] = useState(null);
 
-  // Get lobby parameters
+  // Get parameters
   const urlParams = new URLSearchParams(window.location.search);
-  const lobbyCode = urlParams.get('code');
-  const playerRole = urlParams.get('role');
   const carConfig = JSON.parse(decodeURIComponent(urlParams.get('car') || '{}'));
-  const playerProgram = urlParams.get('program') ? JSON.parse(decodeURIComponent(urlParams.get('program'))) : null;
+  const playerProgram = JSON.parse(decodeURIComponent(urlParams.get('program') || '[]'));
+  const aiProgram = JSON.parse(decodeURIComponent(urlParams.get('aiProgram') || '[]'));
+  const aiDifficulty = urlParams.get('aiDifficulty') || 'medium';
 
   useEffect(() => {
-    if (!lobbyCode || !playerRole) {
+    if (!playerProgram.length || !aiProgram.length) {
       navigate('/');
       return;
     }
@@ -73,68 +74,56 @@ export default function MultiplayerRacePage() {
     const trackGroup = trackData?.group ?? trackData;
     if (trackGroup) scene.add(trackGroup);
 
-    // Create cars for both players
+    // Create cars
     const cars = {};
     const adapters = {};
     const sensors = {};
     const limiters = {};
     const runtimes = {};
 
-    // Player 1 car (red)
-    const { group: car1Group, wheels: car1Wheels } = buildLowPolyCar({ 
+    // Player car (blue)
+    const { group: playerCarGroup, wheels: playerCarWheels } = buildLowPolyCar({ 
       scale: 0.6, 
       wheelType: carConfig.wheels || 'standard',
-      bodyColor: playerRole === 'p1' ? 0xff4444 : 0x4444ff
+      bodyColor: 0x4444ff
     });
-    car1Group.position.set(-5, 1, 0);
-    scene.add(car1Group);
+    playerCarGroup.position.set(-5, 1, 0);
+    scene.add(playerCarGroup);
     
-    cars.p1 = car1Group;
-    adapters.p1 = new CarAdapter({ group: car1Group, wheels: car1Wheels }, { 
+    cars.player = playerCarGroup;
+    adapters.player = new CarAdapter({ group: playerCarGroup, wheels: playerCarWheels }, { 
       wheelBase: 2.7, 
       tireRadius: 0.55, 
       maxSteerRad: THREE.MathUtils.degToRad(30) 
     });
-    sensors.p1 = new SensorRig(car1Group, { rayLength: 35 });
-    limiters.p1 = new SafetyLimiter({ 
-      adapter: adapters.p1, 
+    sensors.player = new SensorRig(playerCarGroup, { rayLength: 35 });
+    limiters.player = new SafetyLimiter({ 
+      adapter: adapters.player, 
       carSpecs: { maxSpeedFwd: 28, maxSpeedRev: 7, maxAccel: 12, maxBrake: 18 } 
     });
-    // Use player's program if they're p1, otherwise use default
-    const p1Program = (playerRole === 'p1' && playerProgram) ? playerProgram : [
-      { if: 'f_min < 10', then: { throttle: '0.2', steer: '(r_min - l_min) * 0.06' } },
-      { if: 'f_min >= 10 && f_min < 20', then: { throttle: '0.6', steer: '(r_min - l_min) * 0.03' } },
-      { if: 'f_min >= 20', then: { throttle: '1.0', steer: '(r_min - l_min) * 0.02' } }
-    ];
-    runtimes.p1 = new BlockRuntime(p1Program);
+    runtimes.player = new BlockRuntime(playerProgram);
 
-    // Player 2 car (blue)
-    const { group: car2Group, wheels: car2Wheels } = buildLowPolyCar({ 
+    // AI car (red)
+    const { group: aiCarGroup, wheels: aiCarWheels } = buildLowPolyCar({ 
       scale: 0.6, 
       wheelType: carConfig.wheels || 'standard',
-      bodyColor: playerRole === 'p2' ? 0xff4444 : 0x4444ff
+      bodyColor: 0xff4444
     });
-    car2Group.position.set(5, 1, 0);
-    scene.add(car2Group);
+    aiCarGroup.position.set(5, 1, 0);
+    scene.add(aiCarGroup);
     
-    cars.p2 = car2Group;
-    adapters.p2 = new CarAdapter({ group: car2Group, wheels: car2Wheels }, { 
+    cars.ai = aiCarGroup;
+    adapters.ai = new CarAdapter({ group: aiCarGroup, wheels: aiCarWheels }, { 
       wheelBase: 2.7, 
       tireRadius: 0.55, 
       maxSteerRad: THREE.MathUtils.degToRad(30) 
     });
-    sensors.p2 = new SensorRig(car2Group, { rayLength: 35 });
-    limiters.p2 = new SafetyLimiter({ 
-      adapter: adapters.p2, 
+    sensors.ai = new SensorRig(aiCarGroup, { rayLength: 35 });
+    limiters.ai = new SafetyLimiter({ 
+      adapter: adapters.ai, 
       carSpecs: { maxSpeedFwd: 28, maxSpeedRev: 7, maxAccel: 12, maxBrake: 18 } 
     });
-    // Use player's program if they're p2, otherwise use default
-    const p2Program = (playerRole === 'p2' && playerProgram) ? playerProgram : [
-      { if: 'f_min < 8', then: { throttle: '0.3', steer: '(r_min - l_min) * 0.08' } },
-      { if: 'f_min >= 8 && f_min < 15', then: { throttle: '0.7', steer: '(r_min - l_min) * 0.04' } },
-      { if: 'f_min >= 15', then: { throttle: '0.9', steer: '(r_min - l_min) * 0.025' } }
-    ];
-    runtimes.p2 = new BlockRuntime(p2Program);
+    runtimes.ai = new BlockRuntime(aiProgram);
 
     // Collision objects
     const colliders = [];
@@ -149,9 +138,10 @@ export default function MultiplayerRacePage() {
 
     const clock = new THREE.Clock();
     let startTime = null;
+    let raceFinished = false;
 
     // Camera follow logic
-    const followCar = cars[playerRole];
+    const followCar = cars.player;
     const cameraOffset = new THREE.Vector3(0, 15, 25);
 
     const onResize = () => {
@@ -179,31 +169,39 @@ export default function MultiplayerRacePage() {
       controls.update();
 
       // Update both cars
-      Object.keys(cars).forEach(playerId => {
-        if (gameState === 'racing') {
-          const sensorData = sensors[playerId].sample(colliders);
-          const desired = runtimes[playerId].step({ 
+      Object.keys(cars).forEach(carId => {
+        if (gameState === 'racing' && !raceFinished) {
+          const sensorData = sensors[carId].sample(colliders);
+          const desired = runtimes[carId].step({ 
             sensors: sensorData, 
-            speed: adapters[playerId].getScalarSpeed() 
+            speed: adapters[carId].getScalarSpeed() 
           });
-          const safe = limiters[playerId].filterControls(desired, adapters[playerId].getScalarSpeed());
-          adapters[playerId].setControls(safe);
+          const safe = limiters[carId].filterControls(desired, adapters[carId].getScalarSpeed());
+          adapters[carId].setControls(safe);
         }
-        adapters[playerId].tick(dt);
+        adapters[carId].tick(dt);
       });
 
-      // Camera follows player's car
+      // Camera follows player car
       if (followCar) {
         const targetPos = followCar.position.clone().add(cameraOffset);
         camera.position.lerp(targetPos, 0.05);
         camera.lookAt(followCar.position);
       }
 
-      // Update positions for UI
-      setPlayerPositions({
-        p1: cars.p1.position.distanceTo(new THREE.Vector3(0, 0, 0)),
-        p2: cars.p2.position.distanceTo(new THREE.Vector3(0, 0, 0))
-      });
+      // Update positions and check for winner
+      const playerPos = cars.player.position.distanceTo(new THREE.Vector3(0, 0, 0));
+      const aiPos = cars.ai.position.distanceTo(new THREE.Vector3(0, 0, 0));
+      
+      setPlayerPosition(playerPos);
+      setAiPosition(aiPos);
+
+      // Check for race finish (simple distance-based for now)
+      if (gameState === 'racing' && !raceFinished && (playerPos > 200 || aiPos > 200)) {
+        raceFinished = true;
+        setGameState('finished');
+        setWinner(playerPos > aiPos ? 'player' : 'ai');
+      }
 
       renderer.render(scene, camera);
       rafRef.current = requestAnimationFrame(loop);
@@ -218,7 +216,7 @@ export default function MultiplayerRacePage() {
       }
       renderer.dispose();
     };
-  }, [lobbyCode, playerRole, carConfig, selectedTrack, gameState]);
+  }, [playerProgram, aiProgram, carConfig, selectedTrack, gameState]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -245,10 +243,10 @@ export default function MultiplayerRacePage() {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-            🏁 Multiplayer Race
+            🤖 AI Race Challenge
           </div>
           <div style={{ fontSize: '18px' }}>
-            Code: <span style={{ color: '#ff6b9d' }}>{lobbyCode}</span>
+            Difficulty: <span style={{ color: '#00ffff' }}>{aiDifficulty}</span>
           </div>
         </div>
 
@@ -256,12 +254,14 @@ export default function MultiplayerRacePage() {
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
           <div style={{ 
             padding: '8px 16px', 
-            background: gameState === 'waiting' ? '#ff6b00' : gameState === 'racing' ? '#00ff6b' : '#6b00ff',
+            background: gameState === 'waiting' ? '#ff6b00' : gameState === 'racing' ? '#00ff6b' : winner === 'player' ? '#00ff00' : '#ff0000',
             borderRadius: '20px',
             fontSize: '14px',
             fontWeight: 'bold'
           }}>
-            {gameState === 'waiting' ? '⏳ Starting...' : gameState === 'racing' ? '🏃 Racing!' : '🏆 Finished!'}
+            {gameState === 'waiting' ? '⏳ Starting...' : 
+             gameState === 'racing' ? '🏃 Racing!' : 
+             winner === 'player' ? '🏆 You Win!' : '🤖 AI Wins!'}
           </div>
           
           {gameState === 'racing' && (
@@ -271,7 +271,7 @@ export default function MultiplayerRacePage() {
           )}
         </div>
 
-        {/* Player Status */}
+        {/* Player vs AI Status */}
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: '1fr 1fr', 
@@ -281,29 +281,29 @@ export default function MultiplayerRacePage() {
         }}>
           <div style={{
             padding: '10px',
-            background: playerRole === 'p1' ? 'rgba(255, 68, 68, 0.3)' : 'rgba(68, 68, 255, 0.3)',
+            background: 'rgba(68, 68, 255, 0.3)',
             borderRadius: '8px',
-            border: playerRole === 'p1' ? '2px solid #ff4444' : '1px solid rgba(255,255,255,0.2)'
+            border: winner === 'player' ? '2px solid #00ff00' : '1px solid rgba(255,255,255,0.2)'
           }}>
             <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-              {playerRole === 'p1' ? '👑 You (Host)' : '🎮 Player 1'}
+              👤 You (Player)
             </div>
             <div style={{ fontSize: '12px', opacity: 0.8 }}>
-              Distance: {playerPositions.p1.toFixed(1)}m
+              Distance: {playerPosition.toFixed(1)}m
             </div>
           </div>
           
           <div style={{
             padding: '10px',
-            background: playerRole === 'p2' ? 'rgba(255, 68, 68, 0.3)' : 'rgba(68, 68, 255, 0.3)',
+            background: 'rgba(255, 68, 68, 0.3)',
             borderRadius: '8px',
-            border: playerRole === 'p2' ? '2px solid #ff4444' : '1px solid rgba(255,255,255,0.2)'
+            border: winner === 'ai' ? '2px solid #ff0000' : '1px solid rgba(255,255,255,0.2)'
           }}>
             <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-              {playerRole === 'p2' ? '👑 You (Player 2)' : '🎮 Player 2'}
+              🤖 Cerebras AI
             </div>
             <div style={{ fontSize: '12px', opacity: 0.8 }}>
-              Distance: {playerPositions.p2.toFixed(1)}m
+              Distance: {aiPosition.toFixed(1)}m
             </div>
           </div>
         </div>
@@ -329,10 +329,10 @@ export default function MultiplayerRacePage() {
                 onClick={() => setSelectedTrack(key)}
                 style={{
                   padding: '8px 16px',
-                  background: selectedTrack === key ? '#ff6b9d' : 'rgba(255,255,255,0.1)',
+                  background: selectedTrack === key ? '#00ffff' : 'rgba(255,255,255,0.1)',
                   border: 'none',
                   borderRadius: '6px',
-                  color: 'white',
+                  color: selectedTrack === key ? '#000' : 'white',
                   cursor: 'pointer',
                   fontSize: '14px'
                 }}
@@ -362,6 +362,58 @@ export default function MultiplayerRacePage() {
       >
         ← Back to Home
       </button>
+
+      {/* Race Results */}
+      {gameState === 'finished' && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'rgba(0,0,0,0.9)',
+          padding: '30px',
+          borderRadius: '15px',
+          color: 'white',
+          textAlign: 'center',
+          minWidth: '300px'
+        }}>
+          <div style={{ fontSize: '32px', marginBottom: '20px' }}>
+            {winner === 'player' ? '🏆 Victory!' : '🤖 AI Wins!'}
+          </div>
+          <div style={{ fontSize: '18px', marginBottom: '20px' }}>
+            Race Time: {formatTime(raceTime)}
+          </div>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                padding: '10px 20px',
+                background: '#00ff00',
+                border: 'none',
+                borderRadius: '6px',
+                color: '#000',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              Race Again
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              style={{
+                padding: '10px 20px',
+                background: 'rgba(255,255,255,0.2)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: '6px',
+                color: 'white',
+                cursor: 'pointer'
+              }}
+            >
+              Home
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

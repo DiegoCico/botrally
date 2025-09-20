@@ -9,7 +9,7 @@ export function buildLowPolyCar({
   lightColor  = 0xe9e5d8,
   tireColor   = 0x22262b,
   rimColor    = 0xcfd6dd,
-  scale       = 1.0,
+  scale       = 0.5,
   castShadow  = true,
   receiveShadow = true,
 } = {}) {

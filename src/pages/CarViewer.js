@@ -60,7 +60,7 @@ function CarViewerPage() {
     controlsRef.current = controls;
 
     // --- Car
-    const carApi = buildLowPolyCar({ bodyColor: COLORS[currentIndex].value, scale: 1 });
+    const carApi = buildLowPolyCar({ bodyColor: COLORS[currentIndex].value, scale: 0.5 });
     carApiRef.current = carApi;
     scene.add(carApi.group);
 

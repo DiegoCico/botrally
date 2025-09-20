@@ -1,66 +1,105 @@
-/* Since the React component uses Tailwind CSS classes, we just need to define
-  the custom animations used in the component's `className` and `style` props.
-*/
-
+/* ===== Your existing animation utilities ===== */
 @keyframes float {
-  0% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-20px) rotate(5deg);
-  }
-  100% {
-    transform: translateY(0px) rotate(0deg);
-  }
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(5deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
 }
-
 @keyframes bounce-in {
-  0% {
-    opacity: 0;
-    transform: scale(0.3);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.05);
-  }
-  70% {
-    transform: scale(0.9);
-  }
-  100% {
-    transform: scale(1);
-  }
+  0% { opacity: 0; transform: scale(0.3); }
+  50% { opacity: 1; transform: scale(1.05); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); }
 }
-
 @keyframes wiggle {
-  0%, 100% {
-    transform: rotate(-3deg);
-  }
-  50% {
-    transform: rotate(3deg);
-  }
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
 }
+.animate-float { animation: float 6s ease-in-out infinite; }
+.animate-bounce-in { animation: bounce-in 1s ease-out forwards; }
+.animate-wiggle { animation: wiggle 1.5s ease-in-out infinite; }
 
-/* Add these classes to the global scope so Tailwind can find them */
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
-
-.animate-bounce-in {
-  animation: bounce-in 1s ease-out forwards;
-}
-
-.animate-wiggle {
-  animation: wiggle 1.5s ease-in-out infinite;
-}
-
-/* Basic body styles for the page */
+/* ===== Hard black everywhere ===== */
+html, body, #root { background-color: #000 !important; }
 body {
   margin: 0;
+  color: #F8FAFC;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #0F172A; /* Match the component's background */
 }
 
+/* ===== Racing theme helpers (match App.jsx inline styles) ===== */
+
+/* carbon fiber texture bg */
+.carbon {
+  background:
+    radial-gradient(circle at 25% 25%, rgba(255,255,255,0.02) 2%, transparent 3%),
+    radial-gradient(circle at 75% 75%, rgba(255,255,255,0.02) 2%, transparent 3%),
+    linear-gradient(45deg, rgba(255,255,255,0.01), rgba(0,0,0,0.25));
+  background-size: 16px 16px, 16px 16px, cover;
+}
+
+/* moving diagonal speed lines */
+@keyframes move-diag { to { transform: translate3d(-20%, -20%, 0); } }
+.speedlines {
+  position: absolute; inset: -20%;
+  background:
+    repeating-linear-gradient(135deg,
+      rgba(99,102,241,0.06) 0 20px,
+      transparent 20px 40px);
+  animation: move-diag 12s linear infinite;
+  filter: blur(0.5px);
+  pointer-events: none;
+}
+
+/* scanlines overlay */
+.scanlines:before {
+  content: "";
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    to bottom, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 2px, transparent 3px
+  );
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+/* checkered banners (dark) */
+.checkers {
+  --s: 22px;
+  background:
+    conic-gradient(from 90deg, #0b0b0b 90deg, #111 0) 0 0/var(--s) var(--s);
+  opacity: 0.08;
+  padding: 6px 0;
+}
+
+/* animated neon border around hero card */
+@keyframes spin { to { transform: rotate(360deg); } }
+.neon-border { position: relative; }
+.neon-border:after {
+  content: "";
+  position: absolute; inset: -2px; border-radius: 1.75rem;
+  background: conic-gradient(from 0deg,
+    #22d3ee, #6366f1, #a855f7, #ec4899, #22d3ee);
+  filter: blur(14px);
+  opacity: 0.35;
+  animation: spin 8s linear infinite;
+  z-index: -1;
+}
+
+/* flicker title glow */
+@keyframes glowflicker {
+  0%, 100% { filter: brightness(1); }
+  45% { filter: brightness(1.08); }
+  48% { filter: brightness(0.94); }
+  52% { filter: brightness(1.12); }
+  80% { filter: brightness(1.02); }
+}
+.title-glow {
+  text-shadow:
+    0 0 10px rgba(99,102,241,0.6),
+    0 0 30px rgba(99,102,241,0.35),
+    0 0 60px rgba(168,85,247,0.25);
+  animation: glowflicker 3.2s ease-in-out infinite;
+}

@@ -28,10 +28,12 @@ export function chaikinSmooth(points, iterations = 2) {
 
 /** Build a centripetal Catmull–Rom curve that avoids overshoot on tight bends. */
 export function makeSmoothCurve(points, { closed = true, smoothIter = 2, tension = 0.5 } = {}) {
-  const base = closed ? [...points, points[0]] : points;
-  const smoothed = chaikinSmooth(base, smoothIter);
-  return new THREE.CatmullRomCurve3(smoothed, closed, 'centripetal', tension);
-}
+    // Do NOT duplicate the first point for closed curves; CatmullRom handles wrapping.
+    const base = closed ? points : points;
+    const smoothed = chaikinSmooth(base, smoothIter);
+    return new THREE.CatmullRomCurve3(smoothed, closed, 'centripetal', tension);
+  }
+  
 
 /* ------------------------------ Road Builder ------------------------------- */
 
@@ -251,20 +253,31 @@ export function buildRibbonRoad({
 
 /* ----------------------- Quick lights + ground helper ---------------------- */
 
-export function addLightsAndGround(scene) {
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x111122, 0.6);
-  scene.add(hemi);
-
-  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
-  dir.position.set(60, 120, 80);
-  dir.castShadow = true;
-  scene.add(dir);
-
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(2000, 2000),
-    new THREE.MeshStandardMaterial({ color: 0x0f3d0f, roughness: 1 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  scene.add(ground);
-}
+export function addLightsAndGround(
+    scene,
+    {
+      groundColor = 0x0f3d0f,   // ← default kept (green), override from caller to 0x000000
+      groundSize  = 4000,
+      hemiIntensity = 0.6,
+      dirIntensity  = 0.9
+    } = {}
+  ) {
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x111122, hemiIntensity);
+    scene.add(hemi);
+  
+    const dir = new THREE.DirectionalLight(0xffffff, dirIntensity);
+    dir.position.set(60, 120, 80);
+    dir.castShadow = true;
+    scene.add(dir);
+  
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(groundSize, groundSize),
+      new THREE.MeshStandardMaterial({ color: groundColor, roughness: 1 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+  
+    return { hemi, dir, ground };
+  }
+  

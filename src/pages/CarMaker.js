@@ -1,4 +1,7 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import CarPreview from '../components/car/CarPreview';
+import CarCanvas from '../components/car/CarCanvas';
 
 // --- UI Components (Recreated for consistency) ---
 
@@ -11,7 +14,7 @@ const Card = ({ children, className, onClick }) => (
   </div>
 );
 
-const Button = ({ children, variant = 'default', className }) => {
+const Button = ({ onClick, children, variant = 'default', className }) => {
   const baseClasses = 'font-bold rounded-xl transition-all duration-200 shadow-lg inline-flex items-center justify-center text-center px-6 py-3';
 
   const variantClasses = {
@@ -21,7 +24,7 @@ const Button = ({ children, variant = 'default', className }) => {
   };
 
   return (
-    <button className={`${baseClasses} ${variantClasses[variant]} ${className}`}>
+    <button onClick={onClick} className={`${baseClasses} ${variantClasses[variant]} ${className}`}>
       {children}
     </button>
   );
@@ -37,26 +40,41 @@ const ArrowLeftIcon = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg"
 
 // --- Mock Data for Parts ---
 const partsData = {
-    body: [
-        { id: 'mk1', name: 'Racer MK1', stats: { speed: 5, acceleration: 7, handling: 8 }, icon: '🏎️' },
-        { id: 'bulky', name: 'The Bulky Boy', stats: { speed: 7, acceleration: 4, handling: 5 }, icon: '🚚' },
-        { id: 'streamline', name: 'Streamline', stats: { speed: 8, acceleration: 6, handling: 6 }, icon: '✈️' },
-    ],
-    wheels: [
-        { id: 'standard', name: 'Standard Slicks', stats: { speed: 0, acceleration: 1, handling: 1 }, icon: '⚫' },
-        { id: 'offroad', name: 'Off-Road Grips', stats: { speed: -1, acceleration: -1, handling: 3 }, icon: '🚜' },
-        { id: 'slim', name: 'Slim Racers', stats: { speed: 2, acceleration: 0, handling: -1 }, icon: '💿' },
-    ],
-    engine: [
-        { id: 'v4', name: 'Standard V4', stats: { speed: 5, acceleration: 6, handling: 0 }, icon: '⚙️' },
-        { id: 'v8', name: 'Heavy V8', stats: { speed: 8, acceleration: 4, handling: -2 }, icon: '🔥' },
-        { id: 'electric', name: 'Supercharged EV', stats: { speed: 6, acceleration: 9, handling: 1 }, icon: '⚡' },
-    ],
-    spoiler: [
-        { id: 'none', name: 'No Spoiler', stats: { speed: 1, acceleration: 0, handling: -1 }, icon: '🚫' },
-        { id: 'ducktail', name: 'Ducktail', stats: { speed: 0, acceleration: 0, handling: 2 }, icon: '🦆' },
-        { id: 'gtwing', name: 'GT Wing', stats: { speed: -1, acceleration: 1, handling: 4 }, icon: '🏁' },
-    ]
+  body: [
+    { 
+      id: 'mk1', 
+      name: 'Racer MK1', 
+      stats: { speed: 5, acceleration: 7, handling: 8 }, 
+      bodyColor: 0xc0455e   // 🔴 red
+    },
+    { 
+      id: 'blue', 
+      name: 'Blue Bullet', 
+      stats: { speed: 7, acceleration: 4, handling: 5 }, 
+      bodyColor: 0x3366ff   // 🔵 blue
+    },
+    { 
+      id: 'green', 
+      name: 'Eco Rider', 
+      stats: { speed: 8, acceleration: 6, handling: 6 }, 
+      bodyColor: 0x33cc66   // 🟢 green
+    },
+  ],
+  wheels: [
+    { id: 'standard', name: 'Standard Slicks', stats: { speed: 0, acceleration: 1, handling: 1 }, icon: '⚫' },
+    { id: 'offroad', name: 'Off-Road Grips', stats: { speed: -1, acceleration: -1, handling: 3 }, icon: '🚜' },
+    { id: 'slim', name: 'Slim Racers', stats: { speed: 2, acceleration: 0, handling: -1 }, icon: '💿' },
+  ],
+  engine: [
+    { id: 'v4', name: 'Standard V4', stats: { speed: 5, acceleration: 6, handling: 0 }, icon: '⚙️' },
+    { id: 'v8', name: 'Heavy V8', stats: { speed: 8, acceleration: 4, handling: -2 }, icon: '🔥' },
+    { id: 'electric', name: 'Supercharged EV', stats: { speed: 6, acceleration: 9, handling: 1 }, icon: '⚡' },
+  ],
+  spoiler: [
+    { id: 'none', name: 'No Spoiler', stats: { speed: 1, acceleration: 0, handling: -1 }, icon: '🚫' },
+    { id: 'ducktail', name: 'Ducktail', stats: { speed: 0, acceleration: 0, handling: 2 }, icon: '🦆' },
+    { id: 'gtwing', name: 'GT Wing', stats: { speed: -1, acceleration: 1, handling: 4 }, icon: '🏁' },
+  ]
 };
 
 const categories = [
@@ -69,6 +87,7 @@ const categories = [
 // --- Main App Component ---
 
 export default function CarMaker() {
+    const navigate = useNavigate()
     const [activeCategory, setActiveCategory] = useState('body');
     const [selectedParts, setSelectedParts] = useState({
         body: 'mk1',
@@ -105,18 +124,21 @@ export default function CarMaker() {
         </div>
     );
 
+    const handleNavigate = (route) => {
+        navigate(route)
+    }
+
     return (
         <div className="min-h-screen bg-slate-900 text-slate-50 font-sans flex flex-col md:flex-row">
             {/* --- Left Side: 3D Viewer --- */}
-            <main className="flex-grow md:w-2/3 p-4 md:p-8 flex flex-col relative">
+            {/* <main className="flex-grow md:w-2/3 p-4 md:p-8 flex flex-col relative">
                  <div className="absolute top-4 left-4 z-10">
-                    <Button variant="ghost">
+                    <Button onClick={() => handleNavigate('/')} variant="ghost">
                         <ArrowLeftIcon className="w-5 h-5 mr-2" />
                         Back to Menu
                     </Button>
                 </div>
                 <div className="flex-grow flex items-center justify-center">
-                     {/* This is where your 3JS canvas will go */}
                     <div className="w-full h-full max-w-4xl max-h-[500px] bg-slate-800/50 rounded-3xl border-2 border-slate-700 flex items-center justify-center">
                         <div className="text-center text-slate-500">
                              <h2 className="text-2xl font-bold">3D Car Preview</h2>
@@ -126,6 +148,30 @@ export default function CarMaker() {
                 </div>
                  <div className="flex-shrink-0 p-4 text-center">
                     <h1 className="text-3xl font-black">Racer MK1</h1>
+                    <p className="text-indigo-400">Standard Edition</p>
+                </div>
+            </main> */}
+            <main className="flex-grow md:w-2/3 p-4 md:p-8 flex flex-col relative">
+                <div className="absolute top-4 left-4 z-10">
+                    <Button onClick={() => handleNavigate('/')} variant="ghost">
+                        <ArrowLeftIcon className="w-5 h-5 mr-2" />
+                        Back to Menu
+                    </Button>
+                </div>
+
+                <div className="flex-grow flex items-center justify-center">
+                    <div className="w-full h-full max-w-4xl max-h-[500px] bg-slate-800/50 rounded-3xl border-2 border-slate-700 flex items-center justify-center">
+                        {/* Replace the placeholder with the actual CarCanvas */}
+                        <CarCanvas
+                            bodyColor={partsData.body.find(b => b.id === selectedParts.body)?.bodyColor}
+                        />
+                    </div>
+                </div>
+
+                <div className="flex-shrink-0 p-4 text-center">
+                    <h1 className="text-3xl font-black">
+                        {partsData.body.find(b => b.id === selectedParts.body)?.name}
+                    </h1>
                     <p className="text-indigo-400">Standard Edition</p>
                 </div>
             </main>
@@ -149,7 +195,7 @@ export default function CarMaker() {
                 </div>
 
                 {/* Parts Grid */}
-                <div className="flex-grow grid grid-cols-2 gap-4">
+                {/* <div className="flex-grow grid grid-cols-2 gap-4">
                     {partsData[activeCategory].map(part => (
                         <Card
                             key={part.id}
@@ -160,6 +206,24 @@ export default function CarMaker() {
                                 <span className="text-4xl mb-2">{part.icon}</span>
                                 <p className="font-bold">{part.name}</p>
                             </div>
+                        </Card>
+                    ))}
+                </div> */}
+                <div className="flex-grow grid grid-cols-2 gap-4">
+                    {partsData[activeCategory].map(part => (
+                        <Card
+                        key={part.id}
+                        onClick={() => handleSelectPart(activeCategory, part.id)}
+                        className={selectedParts[activeCategory] === part.id ? 'border-indigo-500' : 'border-slate-700 hover:border-slate-500'}
+                        >
+                        <div className="flex flex-col items-center text-center">
+                            {activeCategory === 'body' ? (
+                            <CarPreview bodyColor={part.bodyColor} />
+                            ) : (
+                            <span className="text-4xl mb-2">{part.icon}</span>
+                            )}
+                            <p className="font-bold">{part.name}</p>
+                        </div>
                         </Card>
                     ))}
                 </div>

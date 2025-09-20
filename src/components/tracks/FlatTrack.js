@@ -1,9 +1,7 @@
+// FlatTrack.js
 import * as THREE from 'three';
-import { buildRoad } from './TrackUtils.js';
+import { buildRibbonRoad as buildRoad, makeSmoothCurve } from './TrackUtils';
 
-/**
- * Flat track with flowing curves at y=0.
- */
 export function buildFlatTrack({ closed = true } = {}) {
   const pts = [];
   const radiusX = 80, radiusZ = 50;
@@ -13,6 +11,6 @@ export function buildFlatTrack({ closed = true } = {}) {
     const z = Math.sin(a) * (radiusZ + 4 * Math.cos(3 * a));
     pts.push(new THREE.Vector3(x, 0, z));
   }
-  const curve = new THREE.CatmullRomCurve3(pts, closed, 'catmullrom', 0.15);
-  return buildRoad({ curve, width: 10, thickness: 0.35, segments: 900, closed });
+  const curve = makeSmoothCurve(pts, { closed, smoothIter: 1, tension: 0.5 });
+  return buildRoad({ curve, width: 10, segments: 1200, closed, rails: true });
 }

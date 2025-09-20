@@ -1,169 +1,5 @@
-// // import { Button } from "@/components/ui/button"
-// // import { Card } from "@/components/ui/card"
-// // import { Badge } from "@/components/ui/badge"
-// // import { Play, Settings, Trophy, Users, Zap, Car } from "lucide-react"
-
-// // export default function WelcomePage() {
-
-
-// //   return (
-// //     <div className="min-h-screen bg-background relative overflow-hidden">
-// //       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-// //         <div
-// //           className="absolute top-20 left-10 w-16 h-16 bg-primary/20 rounded-full animate-float"
-// //           style={{ animationDelay: "0s" }}
-// //         />
-// //         <div
-// //           className="absolute top-40 right-20 w-12 h-12 bg-secondary/20 rounded-full animate-float"
-// //           style={{ animationDelay: "1s" }}
-// //         />
-// //         <div
-// //           className="absolute bottom-32 left-1/4 w-20 h-20 bg-accent/20 rounded-full animate-float"
-// //           style={{ animationDelay: "2s" }}
-// //         />
-// //         <div
-// //           className="absolute top-1/3 right-1/3 w-8 h-8 bg-destructive/20 rounded-full animate-float"
-// //           style={{ animationDelay: "0.5s" }}
-// //         />
-// //       </div>
-
-// //       <header className="relative z-10 p-6">
-// //         <nav className="flex items-center justify-between max-w-7xl mx-auto">
-// //           <div className="flex items-center gap-3 animate-bounce-in">
-// //             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center animate-wiggle">
-// //               {/* <Car className="w-6 h-6 text-primary-foreground" /> */}
-// //             </div>
-// //             <span className="text-2xl font-bold text-foreground">TurboKart</span>
-// //           </div>
-
-// //           <div className="hidden md:flex items-center gap-6">
-// //             <Button variant="ghost" className="text-foreground hover:text-primary font-medium">
-// //               Garage
-// //             </Button>
-// //             <Button variant="ghost" className="text-foreground hover:text-primary font-medium">
-// //               Leaderboard
-// //             </Button>
-// //             <Button variant="ghost" className="text-foreground hover:text-primary font-medium">
-// //               Community
-// //             </Button>
-// //             <Button variant="outline" className="border-2 hover:scale-105 transition-transform bg-transparent">
-// //               Sign In
-// //             </Button>
-// //           </div>
-// //         </nav>
-// //       </header>
-
-// //       <main className="relative z-10 px-6 py-12">
-// //         <div className="max-w-7xl mx-auto text-center">
-// //           {/* Hero Title */}
-// //           <div className="mb-8 animate-bounce-in" style={{ animationDelay: "0.2s" }}>
-// //             <Badge className="mb-4 bg-accent text-accent-foreground px-4 py-2 text-sm font-bold animate-wiggle">
-// //               🏁 NEW SEASON LIVE!
-// //             </Badge>
-// //             <h1 className="text-6xl md:text-8xl font-black text-foreground mb-6 leading-tight text-balance">
-// //               Build Your
-// //               <span className="block text-primary animate-float" style={{ animationDelay: "0.5s" }}>
-// //                 Dream Kart
-// //               </span>
-// //             </h1>
-// //             <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed text-pretty">
-// //               Mix, match, and race with endless customization possibilities in the most cartoony racing adventure ever!
-// //             </p>
-// //           </div>
-
-// //           <div className="mb-12 animate-bounce-in" style={{ animationDelay: "0.4s" }}>
-// //             <div className="relative mx-auto w-96 h-64 bg-card rounded-3xl border-4 border-primary/20 overflow-hidden animate-float shadow-2xl">
-// //               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10" />
-// //               <img src="/cartoony-racing-car-with-big-wheels-and-bright-col.jpg" alt="Cartoony racing kart" className="w-full h-full object-cover" />
-// //               <div className="absolute bottom-4 left-4 right-4">
-// //                 <Badge className="bg-primary text-primary-foreground font-bold">Modular Design System</Badge>
-// //               </div>
-// //             </div>
-// //           </div>
-
-// //           <div
-// //             className="flex flex-col sm:flex-row gap-4 justify-center mb-16 animate-bounce-in"
-// //             style={{ animationDelay: "0.6s" }}
-// //           >
-// //             <Button
-// //               size="lg"
-// //               className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 text-lg font-bold rounded-2xl hover:scale-105 transition-all duration-200 shadow-lg animate-wiggle"
-// //             >
-// //               {/* <Play className="w-6 h-6 mr-2" /> */}
-// //               Start Racing
-// //             </Button>
-// //             <Button
-// //               size="lg"
-// //               variant="outline"
-// //               className="border-2 border-secondary text-secondary hover:bg-secondary hover:text-secondary-foreground px-8 py-4 text-lg font-bold rounded-2xl hover:scale-105 transition-all duration-200 bg-transparent"
-// //             >
-// //               {/* <Settings className="w-6 h-6 mr-2" /> */}
-// //               Customize Kart
-// //             </Button>
-// //           </div>
-
-// //           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-// //             <Card
-// //               className="p-8 bg-card border-2 border-primary/20 rounded-3xl hover:scale-105 transition-all duration-300 animate-bounce-in shadow-xl"
-// //               style={{ animationDelay: "0.8s" }}
-// //             >
-// //               <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mb-4 mx-auto animate-float">
-// //                 {/* <Zap className="w-8 h-8 text-primary-foreground" /> */}
-// //               </div>
-// //               <h3 className="text-2xl font-bold text-foreground mb-3">Modular Parts</h3>
-// //               <p className="text-muted-foreground leading-relaxed">
-// //                 Mix and match engines, wheels, bodies, and boosters to create your perfect racing machine!
-// //               </p>
-// //             </Card>
-
-// //             <Card
-// //               className="p-8 bg-card border-2 border-secondary/20 rounded-3xl hover:scale-105 transition-all duration-300 animate-bounce-in shadow-xl"
-// //               style={{ animationDelay: "1s" }}
-// //             >
-// //               <div
-// //                 className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mb-4 mx-auto animate-float"
-// //                 style={{ animationDelay: "1s" }}
-// //               >
-// //                 {/* <Users className="w-8 h-8 text-secondary-foreground" /> */}
-// //               </div>
-// //               <h3 className="text-2xl font-bold text-foreground mb-3">Multiplayer Mayhem</h3>
-// //               <p className="text-muted-foreground leading-relaxed">
-// //                 Race against friends in chaotic multiplayer battles with power-ups and crazy tracks!
-// //               </p>
-// //             </Card>
-
-// //             <Card
-// //               className="p-8 bg-card border-2 border-accent/20 rounded-3xl hover:scale-105 transition-all duration-300 animate-bounce-in shadow-xl"
-// //               style={{ animationDelay: "1.2s" }}
-// //             >
-// //               <div
-// //                 className="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center mb-4 mx-auto animate-float"
-// //                 style={{ animationDelay: "2s" }}
-// //               >
-// //                 {/* <Trophy className="w-8 h-8 text-accent-foreground" /> */}
-// //               </div>
-// //               <h3 className="text-2xl font-bold text-foreground mb-3">Championship Mode</h3>
-// //               <p className="text-muted-foreground leading-relaxed">
-// //                 Climb the leaderboards and unlock exclusive parts in seasonal tournaments!
-// //               </p>
-// //             </Card>
-// //           </div>
-// //         </div>
-// //       </main>
-
-// //       <footer className="relative z-10 mt-20 py-8 border-t border-border">
-// //         <div className="max-w-7xl mx-auto px-6 text-center">
-// //           <p className="text-muted-foreground">
-// //             Ready to build the ultimate racing machine?
-// //             <span className="text-primary font-bold ml-2">Let's go!</span>
-// //           </p>
-// //         </div>
-// //       </footer>
-// //     </div>
-// //   )
-// // }
-
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // --- UI Components (Recreated to remove dependency errors) ---
 
@@ -229,6 +65,7 @@ const TrophyIcon = ({ className }) => (
 // --- Main App Component ---
 
 export default function App() {
+    const navigate = useNavigate();
   // Define colors for use in components
   const colors = {
     background: '#0F172A', // slate-900
@@ -243,6 +80,10 @@ export default function App() {
     muted: '#94A3B8', // slate-400
     border: '#334155', // slate-700
   };
+
+  const handleNavigate = (route) => {
+    navigate(route)
+  }
 
   return (
     <div className="min-h-screen bg-[#0F172A] text-[#F8FAFC] font-sans relative overflow-hidden">
@@ -302,7 +143,7 @@ export default function App() {
               <PlayIcon className="w-6 h-6 mr-2" />
               Start Racing
             </Button>
-            <Button size="lg" variant="outline" className="border-pink-500 text-pink-500 hover:bg-pink-500 hover:text-white">
+            <Button onClick={() => handleNavigate('/carMaker')} size="lg" variant="outline" className="border-pink-500 text-pink-500 hover:bg-pink-500 hover:text-white">
               <SettingsIcon className="w-6 h-6 mr-2" />
               Customize Kart
             </Button>

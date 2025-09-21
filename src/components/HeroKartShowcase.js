@@ -8,12 +8,16 @@ import { buildRibbonRoad as buildRoad, makeSmoothCurve } from './tracks/TrackUti
 export default function HeroKartShowcase() {
   const mountRef = useRef(null);
   const rafRef = useRef(0);
+  const mountedRef = useRef(false); // guard for StrictMode double-mount
 
   useEffect(() => {
+    if (mountedRef.current) return;
+    mountedRef.current = true;
+
     const container = mountRef.current;
     if (!container) return;
 
-    // --- Config (visibility & speed) ---
+    // --- Config (keep EXACTLY as provided) ---
     const CAR_SCALE = 0.38;
     const NUM_CARS = 6;
     const BASE_SPEED = 20;
@@ -21,7 +25,7 @@ export default function HeroKartShowcase() {
     const MAX_LATERAL = ROAD_WIDTH * 0.33;
     const CAR_COLORS = [0xff5a5a, 0x22d3ee, 0xffb020, 0x7a6cff, 0x34d399, 0xec4899];
 
-    // --- Renderer/Scene ---
+    // --- Renderer/Scene (unchanged sizing) ---
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(container.clientWidth, container.clientHeight);
@@ -31,10 +35,9 @@ export default function HeroKartShowcase() {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0a0a);
 
-    // --- Camera: close, slight tilt, diagonal vantage ---
+    // --- Camera (unchanged) ---
     const camera = new THREE.PerspectiveCamera(85, container.clientWidth / container.clientHeight, 0.1, 8000);
     const setCam = (y = 120, tilt = 0.28, diagonal = true) => {
-      // Diagonal view: sit along (-x, +z) so the track runs corner-to-corner.
       const horiz = y * 0.35;
       if (diagonal) camera.position.set(-horiz, y, horiz);
       else camera.position.set(0, y, y * 0.25);
@@ -43,20 +46,20 @@ export default function HeroKartShowcase() {
     };
     setCam();
 
-    // --- Lights & ground ---
+    // --- Lights & ground (unchanged) ---
     const env = addLightsAndGround(scene, {
       groundColor: 0x000000,
       groundSize: 12000,
       hemiIntensity: 0.6,
       dirIntensity: 1.2
     });
-    if (env?.ground) env.ground.position.y = -0.05; // avoid z-fighting
+    if (env?.ground) env.ground.position.y = -0.05;
 
     const rim = new THREE.DirectionalLight(0xffffff, 0.35);
     rim.position.set(-300, 300, -200);
     scene.add(rim);
 
-    // --- Build TechnicalTrack curve ---
+    // --- Curve (unchanged) ---
     const pts = [];
     const push = (x, y, z) => pts.push(new THREE.Vector3(x, y, z));
     push(-100, 6, 0);  push(-60, 6, 0);
@@ -71,20 +74,20 @@ export default function HeroKartShowcase() {
 
     const curve = makeSmoothCurve(pts, { closed: true, smoothIter: 3, tension: 0.5 });
 
-    // --- Group (road + line + cars) we can rotate & lift together ---
+    // --- Group (unchanged) ---
     const trackGroup = new THREE.Group();
     scene.add(trackGroup);
 
-    // Rotate ~45° around Y to lay the track diagonally across the screen.
-    const DIAGONAL_ROT = Math.PI * 0.5; // 45°
+    // Keep your rotation value as-is:
+    const DIAGONAL_ROT = Math.PI * 0.5; // (value preserved exactly)
     trackGroup.rotation.y = DIAGONAL_ROT;
 
-    // Road
+    // Road (unchanged)
     const road = buildRoad({ curve, width: ROAD_WIDTH, segments: 2000, closed: true, rails: true });
     const roadObj = road?.group ?? road;
     trackGroup.add(roadObj);
 
-    // Racing line
+    // Racing line (unchanged)
     const racingLine = new THREE.Mesh(
       new THREE.TubeGeometry(curve, 1000, 0.09, 12, true),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75 })
@@ -92,7 +95,7 @@ export default function HeroKartShowcase() {
     racingLine.position.y += 0.03;
     trackGroup.add(racingLine);
 
-    // --- Auto-lift: keep everything above the floor ---
+    // Auto-lift (unchanged)
     const samples = 2048;
     let minY = Infinity;
     const tmp = new THREE.Vector3();
@@ -103,10 +106,10 @@ export default function HeroKartShowcase() {
     const CLEARANCE = 0.06;
     const yOffset = minY < CLEARANCE ? CLEARANCE - minY : 0;
     if (yOffset !== 0) trackGroup.position.y += yOffset;
-    trackGroup.position.x -= 20; 
+    trackGroup.position.x -= 20;
     trackGroup.position.z += 10;
 
-    // --- Frame camera to track (stays close, diagonal) ---
+    // Frame camera (unchanged)
     {
       const box = new THREE.Box3().setFromObject(roadObj);
       const size = box.getSize(new THREE.Vector3()).length();
@@ -114,15 +117,15 @@ export default function HeroKartShowcase() {
       setCam(y, 0.30, true);
     }
 
-    // --- Cars + brighter trails ---
+    // --- Cars & trails (unchanged visuals) ---
     const totalLen = curve.getLength();
-    const UP = new THREE.Vector3(0, 1, 0);
+    const wheelRadius = 0.55;
+
+    // Shared trail geometry to reduce allocations (same dimensions as your original)
+    const trailGeom = new THREE.ConeGeometry(1.0, 7.0, 24, 1, false);
+    trailGeom.rotateX(Math.PI / 2);
 
     const buildTrail = (hexColor) => {
-      const length = 7.0;
-      const baseRadius = 1.0;
-      const geom = new THREE.ConeGeometry(baseRadius, length, 24, 1, false);
-      geom.rotateX(Math.PI / 2);
       const mat = new THREE.MeshBasicMaterial({
         color: hexColor,
         transparent: true,
@@ -130,15 +133,13 @@ export default function HeroKartShowcase() {
         blending: THREE.AdditiveBlending,
         depthWrite: false
       });
-      const m = new THREE.Mesh(geom, mat);
-      m.position.set(0, 0.28, -length * 0.55);
+      const m = new THREE.Mesh(trailGeom, mat);
+      m.position.set(0, 0.28, -7.0 * 0.55);
       m.renderOrder = 3;
       return m;
     };
 
     const cars = [];
-    const wheelRadius = 0.55;
-
     for (let i = 0; i < NUM_CARS; i++) {
       const color = CAR_COLORS[i % CAR_COLORS.length];
       const api = buildLowPolyCar({ bodyColor: color, scale: CAR_SCALE });
@@ -170,7 +171,7 @@ export default function HeroKartShowcase() {
       });
     }
 
-    // Passing/drafting
+    // Passing/drafting (unchanged logic)
     function updateRaceDynamics(time) {
       cars.sort((a, b) => a.s - b.s);
       for (let i = 0; i < cars.length; i++) {
@@ -195,6 +196,7 @@ export default function HeroKartShowcase() {
       }
     }
 
+    // Helpers (no visual change)
     const spinWheels = (api, dist) => {
       if (!api?.wheels) return;
       const dRot = dist / wheelRadius;
@@ -204,9 +206,20 @@ export default function HeroKartShowcase() {
       api.wheels.RR.rotation.z -= dRot;
     };
 
+    // Reused vectors (reduce GC)
+    const P = new THREE.Vector3();
+    const T = new THREE.Vector3();
+    const Y = new THREE.Vector3(0, 1, 0);
+    const R = new THREE.Vector3();
+
+    // Animation loop with disposal guard
+    let disposed = false;
     let prev = performance.now();
+
     const animate = () => {
+      if (disposed) return;
       rafRef.current = requestAnimationFrame(animate);
+
       const now = performance.now();
       const dt = Math.min((now - prev) / 1000, 0.05);
       prev = now;
@@ -219,9 +232,9 @@ export default function HeroKartShowcase() {
         const du = ds / totalLen;
         c.u = (c.u + du) % 1;
 
-        const P = curve.getPointAt(c.u);
-        const T = curve.getTangentAt(c.u).normalize();
-        const R = new THREE.Vector3().crossVectors(T, new THREE.Vector3(0,1,0)).normalize();
+        curve.getPointAt(c.u, P);
+        curve.getTangentAt(c.u, T).normalize();
+        R.crossVectors(T, Y).normalize();
 
         c.mesh.position.set(P.x, P.y + yOffset + 0.04, P.z).addScaledVector(R, c.lateral);
         c.mesh.rotation.y = -Math.atan2(T.x, T.z);
@@ -231,30 +244,68 @@ export default function HeroKartShowcase() {
 
       renderer.render(scene, camera);
     };
-    animate();
+    rafRef.current = requestAnimationFrame(animate);
 
-    // Resize/Cleanup
+    // Resize (no sizing change; just reactive)
     const resize = () => {
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(container.clientWidth, container.clientHeight, false);
       camera.aspect = container.clientWidth / container.clientHeight;
       camera.updateProjectionMatrix();
     };
     const ro = new ResizeObserver(resize);
     ro.observe(container);
 
+    // Cleanup (robust; no visual changes)
     return () => {
+      disposed = true;
+
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       ro.disconnect();
-      scene.traverse(o => {
+
+      // Dispose materials (and any attached textures) + geometries
+      const disposeMaterial = (m) => {
+        if (!m) return;
+        const maps = [
+          'map','normalMap','roughnessMap','metalnessMap','bumpMap','alphaMap',
+          'emissiveMap','aoMap','specularMap','envMap','clearcoatNormalMap',
+          'clearcoatRoughnessMap','sheenColorMap','sheenRoughnessMap',
+          'transmissionMap','thicknessMap','displacementMap'
+        ];
+        maps.forEach(k => {
+          const tex = m[k];
+          if (tex && tex.dispose) tex.dispose();
+        });
+        m.dispose?.();
+      };
+
+      scene.traverse((o) => {
         if (o.isMesh) {
           o.geometry?.dispose?.();
-          if (Array.isArray(o.material)) o.material.forEach(m => m?.dispose?.());
-          else o.material?.dispose?.();
+          if (Array.isArray(o.material)) o.material.forEach(disposeMaterial);
+          else disposeMaterial(o.material);
+        } else if (o.isLine || o.isPoints) {
+          o.geometry?.dispose?.();
+          disposeMaterial(o.material);
         }
       });
-      renderer.dispose();
+
+      // Dispose shared trail geometry
+      trailGeom.dispose?.();
+
+      // Dispose renderer and lose context to prevent leaks on hot reloads
+      try {
+        renderer.dispose();
+        const gl = renderer.getContext?.();
+        const lose = gl?.getExtension?.('WEBGL_lose_context');
+        lose?.loseContext?.();
+      } catch {
+        // ignore
+      }
+
       const canvas = renderer.domElement;
       if (canvas && canvas.parentNode) canvas.parentNode.removeChild(canvas);
+
+      mountedRef.current = false;
     };
   }, []);
 

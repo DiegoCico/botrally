@@ -1,6 +1,7 @@
 // Cerebras AI service for generating racing algorithms
-const CEREBRAS_API_KEY = process.env.REACT_APP_CEREBRAS_API_KEY;
-const CEREBRAS_API_URL = process.env.REACT_APP_CEREBRAS_API_URL || 'https://api.cerebras.ai/v1';
+// const CEREBRAS_API_KEY = process.env.REACT_APP_CEREBRAS_API_KEY;
+const CEREBRAS_API_KEY = "csk-kppj54cwjmefpw8mj9x9w3ey9yx9yvh64jw3ek9m5prm9d3v";
+const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1';
 
 class CerebrasAI {
   constructor() {
@@ -24,7 +25,7 @@ class CerebrasAI {
           'Authorization': `Bearer ${this.apiKey}`
         },
         body: JSON.stringify({
-          model: 'llama3.1-8b',
+          model: 'qwen-3-coder-480b',
           messages: [
             {
               role: 'system',

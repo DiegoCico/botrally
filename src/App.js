@@ -9,6 +9,7 @@ import CarViewerPage from './pages/CarViewer';
 import CarBlocksPage from './pages/CarBlocksPage';
 import MultiplayerRacePage from './pages/MultiplayerRacePage';
 import AIRacePage from './pages/AIRacePage';
+import RaceScene from './pages/RaceScene'
 import './App.css';
 
 // Temporary stubs so /race and /race/ai don’t 404.
@@ -40,6 +41,7 @@ function App() {
         
         {/* AI race */}
         <Route path="/aiRace" element={<AIRacePage />} />
+        <Route path="/raceScene" element={<RaceScene />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

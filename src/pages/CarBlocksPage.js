@@ -1,3 +1,4 @@
+// src/pages/CarBlocksPage.js
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as THREE from 'three';
@@ -127,95 +128,183 @@ export default function CarBlocksPage() {
     }
   };
 
+  // ---------- Three.js setup with safe WebGL lifecycle ----------
   useEffect(() => {
-    let renderer, container, onResize;
+    const container = mountRef.current;
+    if (!container) return;
 
-    const setupScene = async () => {
-      container = mountRef.current;
-      if (!container) return;
+    // Pre-clean any stray canvases/contexts inside this container
+    Array.from(container.querySelectorAll('canvas')).forEach((c) => {
+      try {
+        const gl = c.getContext('webgl') || c.getContext('webgl2');
+        const lose = gl && gl.getExtension && gl.getExtension('WEBGL_lose_context');
+        if (gl && !gl.isContextLost?.()) lose?.loseContext?.();
+      } catch {}
+      c.parentNode?.removeChild(c);
+    });
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setPixelRatio(window.devicePixelRatio || 1);
-      renderer.setSize(container.clientWidth, container.clientHeight);
-      container.appendChild(renderer.domElement);
+    // Build a dedicated canvas to avoid sharing renderer DOM with others
+    const canvas = document.createElement('canvas');
+    container.appendChild(canvas);
 
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x16181e);
+    let renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    // (Keep your background via scene.background below)
+    // Shadow settings are kept as you had them (only lights/ground used shadows)
+    // If you ever enable shadows, ensure to set renderer.shadowMap.enabled = true;
 
-      const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 500);
-      camera.position.set(16, 10, 16);
-      const controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x16181e);
 
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x334466, 0.6));
-      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-      sun.position.set(12, 18, 8);
-      sun.castShadow = true;
-      scene.add(sun);
+    const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 500);
+    camera.position.set(16, 10, 16);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
 
-      const ground = new THREE.Mesh( new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x3b3f49 }));
-      ground.rotation.x = -Math.PI / 2;
-      ground.receiveShadow = true;
-      scene.add(ground);
+    // Lights/ground (unchanged)
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x334466, 0.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+    sun.position.set(12, 18, 8);
+    sun.castShadow = true;
+    scene.add(sun);
 
-      const obstacles = [];
-      for (let i = 0; i < 8; i++) {
-        const box = new THREE.Mesh( new THREE.BoxGeometry(2, 1, 2), new THREE.MeshStandardMaterial({ color: 0x854444 }));
-        box.position.set((Math.random() - 0.5) * 60, 0.5, (Math.random() - 0.5) * 60);
-        box.castShadow = true;
-        scene.add(box);
-        obstacles.push(box);
-      }
-      const colliders = [ground, ...obstacles];
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.MeshStandardMaterial({ color: 0x3b3f49 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
 
-      const { group, wheels } = await buildLowPolyCar({
+    // Obstacles (unchanged)
+    const obstacles = [];
+    for (let i = 0; i < 8; i++) {
+      const box = new THREE.Mesh(
+        new THREE.BoxGeometry(2, 1, 2),
+        new THREE.MeshStandardMaterial({ color: 0x854444 })
+      );
+      box.position.set((Math.random() - 0.5) * 60, 0.5, (Math.random() - 0.5) * 60);
+      box.castShadow = true;
+      scene.add(box);
+      obstacles.push(box);
+    }
+    const colliders = [ground, ...obstacles];
+
+    let group, wheels;
+    const setupCar = async () => {
+      const api = await buildLowPolyCar({
         scale: 0.5,
         wheelType: carConfig?.wheels || 'slim',
         spoilerType: carConfig?.spoiler || 'none',
         bodyColor: carConfig?.bodyColor || 0x34d399,
       });
+      group = api.group;
+      wheels = api.wheels;
+
       group.position.set(0, 0.55, 0);
       group.castShadow = true;
       scene.add(group);
+    };
 
-      const car = new CarAdapter({ group, wheels }, { wheelBase: 2.7, tireRadius: 0.55, maxSteerRad: THREE.MathUtils.degToRad(30) });
-      const carSpecs = { maxSpeedFwd: 28, maxSpeedRev: 7, maxAccel: 12, maxBrake: 18 };
-      const limiter = new SafetyLimiter({ adapter: car, carSpecs });
-      const sensors = new SensorRig(group, { rayLength: 35 });
-      const clock = new THREE.Clock();
+    let car, limiter, sensors;
+    let clock = new THREE.Clock();
 
-      onResize = () => {
-        const w = container.clientWidth, h = container.clientHeight;
-        renderer.setSize(w, h);
-        camera.aspect = w / h; camera.updateProjectionMatrix();
-      };
-      window.addEventListener('resize', onResize);
+    const onResize = () => {
+      const w = container.clientWidth, h = container.clientHeight;
+      renderer.setSize(w, h); // keep your behavior
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    };
+    window.addEventListener('resize', onResize);
 
-      const loop = () => {
-        const dt = clock.getDelta();
-        controls.update();
+    let disposed = false;
 
+    const loop = () => {
+      if (disposed) return;
+      const dt = clock.getDelta();
+      controls.update();
+
+      // Only tick car logic once it exists
+      if (car && limiter && sensors) {
         const sensorData = sensors.sample(colliders);
         const desired = runtime.step({ sensors: sensorData, speed: car.getScalarSpeed() });
         const safe = limiter.filterControls(desired, car.getScalarSpeed());
         car.setControls(safe);
         car.tick(dt);
+      }
 
-        renderer.render(scene, camera);
-        rafRef.current = requestAnimationFrame(loop);
-      };
+      renderer.render(scene, camera);
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
+    // Async setup → then start loop
+    (async () => {
+      await setupCar();
+      car = new CarAdapter(
+        { group, wheels },
+        { wheelBase: 2.7, tireRadius: 0.55, maxSteerRad: THREE.MathUtils.degToRad(30) }
+      );
+      const carSpecs = { maxSpeedFwd: 28, maxSpeedRev: 7, maxAccel: 12, maxBrake: 18 };
+      limiter = new SafetyLimiter({ adapter: car, carSpecs });
+      sensors = new SensorRig(group, { rayLength: 35 });
+
       loop();
-    };
+    })();
 
-    setupScene();
-
+    // Cleanup: cancel RAF → remove listener → dispose scene → dispose renderer → lose context if needed
     return () => {
+      disposed = true;
+
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      if (onResize) window.removeEventListener('resize', onResize);
-      if (container && renderer) container.removeChild(renderer.domElement);
-      if (renderer) renderer.dispose();
+      rafRef.current = 0;
+
+      window.removeEventListener('resize', onResize);
+
+      // Dispose materials (and any attached textures) + geometries
+      const disposeMaterial = (m) => {
+        if (!m) return;
+        const maps = [
+          'map','normalMap','roughnessMap','metalnessMap','bumpMap','alphaMap',
+          'emissiveMap','aoMap','specularMap','envMap','clearcoatNormalMap',
+          'clearcoatRoughnessMap','sheenColorMap','sheenRoughnessMap',
+          'transmissionMap','thicknessMap','displacementMap'
+        ];
+        maps.forEach(k => { try { m[k]?.dispose?.(); } catch {} });
+        try { m.dispose?.(); } catch {}
+      };
+
+      try { controls.dispose?.(); } catch {}
+
+      scene.traverse((o) => {
+        if (o.isMesh || o.isLine || o.isPoints) {
+          try { o.geometry?.dispose?.(); } catch {}
+          if (Array.isArray(o.material)) o.material.forEach(disposeMaterial);
+          else disposeMaterial(o.material);
+        }
+      });
+
+      // Dispose renderer and lose context only if not already lost
+      try {
+        const gl = renderer.getContext?.();
+        const alreadyLost = gl?.isContextLost?.();
+        renderer.dispose?.();
+        if (gl && !alreadyLost) {
+          const lose = gl.getExtension?.('WEBGL_lose_context');
+          lose?.loseContext?.();
+        }
+      } catch {}
+
+      // Remove canvas from DOM
+      try {
+        const dom = renderer.domElement;
+        if (dom && dom.parentNode === container) container.removeChild(dom);
+      } catch {}
+      
+      // Null local refs
+      renderer = null;
     };
-  }, [runtime]);
+  }, [runtime, carConfig]);
 
   return (
     <div style={{ display: 'grid', gridTemplateRows: '1fr 360px', height: '100vh' }}>

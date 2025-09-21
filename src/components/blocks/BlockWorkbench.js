@@ -4,7 +4,7 @@ import InventoryPanel from './InventoryPanel';
 import BlockCanvasPanel from './BlockCanvasPanel';
 import { compileBlocksToProgram } from './compileProgram';
 
-export default function BlockWorkbench({ onProgramCompiled }) {
+export default function BlockWorkbench({ onProgramCompiled, isRunning, hasProgram, onRunToggle, onStop }) {
   const [blocks, setBlocks] = useState([]);
 
   const handleCompile = () => {
@@ -16,7 +16,15 @@ export default function BlockWorkbench({ onProgramCompiled }) {
   return (
     <div style={{ display:'flex', width:'100%', height:'100%', borderTop:'1px solid #2a2d34' }}>
       <InventoryPanel />
-      <BlockCanvasPanel blocks={blocks} setBlocks={setBlocks} onCompile={handleCompile} />
+      <BlockCanvasPanel 
+        blocks={blocks} 
+        setBlocks={setBlocks} 
+        onCompile={handleCompile}
+        isRunning={isRunning}
+        hasProgram={hasProgram}
+        onRunToggle={onRunToggle}
+        onStop={onStop}
+      />
     </div>
   );
 }

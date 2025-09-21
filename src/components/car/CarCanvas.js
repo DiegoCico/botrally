@@ -53,25 +53,17 @@ import { OrbitControls } from '@react-three/drei';
 import { buildLowPolyCar, fitCarOnGround } from './LowPolyCar'; // Make sure this path is correct!
 
 function Car({ bodyColor, wheelType, spoilerType }) {
-  // ✨ FIX: Pass the initial wheelType to the builder function.
-  const { group, setBodyColor, setSpoilerType, setWheelType } = useMemo(() => {
-    const carData = buildLowPolyCar({ scale: 1, wheelType: wheelType });
+  // Recreate the car whenever any configuration changes
+  const { group } = useMemo(() => {
+    const carData = buildLowPolyCar({ 
+      scale: 1, 
+      bodyColor: bodyColor,
+      wheelType: wheelType,
+      spoilerType: spoilerType
+    });
     fitCarOnGround(carData.group);
     return carData;
-  }, []); // Note: Dependency array is kept empty intentionally to only build the car once.
-
-  useEffect(() => {
-    if (setBodyColor) setBodyColor(bodyColor);
-  }, [bodyColor, setBodyColor]);
-
-  useEffect(() => {
-    if (setSpoilerType) setSpoilerType(spoilerType);
-  }, [spoilerType, setSpoilerType]);
-
-  // This useEffect is still useful for changing the wheels after the initial build.
-  useEffect(() => {
-    if (setWheelType) setWheelType(wheelType);
-  }, [wheelType, setWheelType]);
+  }, [bodyColor, wheelType, spoilerType]); // Recreate when any prop changes
 
   return <primitive object={group} />;
 }

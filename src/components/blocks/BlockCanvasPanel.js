@@ -5,7 +5,7 @@ import { BLOCK_TEMPLATES, SensorSide, Metric, Op, TurnDir, uid, getBlockCategory
 const CANVAS_SIZE = { w: 4000, h: 3000 };
 const GRID_SIZE = 20;
 
-export default function BlockCanvasPanel({ blocks, setBlocks, onCompile }) {
+export default function BlockCanvasPanel({ blocks, setBlocks, onCompile, isRunning, hasProgram, onRunToggle, onStop }) {
   const viewportRef = useRef(null);
   const [pan, setPan]   = useState({ x: -400, y: -250 });
   const [zoom, setZoom] = useState(1);
@@ -102,7 +102,66 @@ export default function BlockCanvasPanel({ blocks, setBlocks, onCompile }) {
   const remove = (id) => setBlocks(prev => prev.filter(b => b.id !== id));
 
   // compile: order by Y then X
-  const handleRun = () => onCompile?.();
+  const handleCompile = () => onCompile?.();
+  const handleRunToggle = () => onRunToggle?.();
+  const handleStop = () => onStop?.();
+
+  // Create a working example solution
+  const handleSolve = () => {
+    const exampleBlocks = [
+      {
+        id: uid(),
+        type: 'RULE',
+        blockType: 'RULE_GENERIC',
+        data: {
+          cond: { sensor: 'forward', metric: 'min', op: '<', value: 10 },
+          act: { accel: 0.2, turn: 'auto', steer: 0.0 }
+        },
+        x: 100,
+        y: 100
+      },
+      {
+        id: uid(),
+        type: 'RULE',
+        blockType: 'RULE_GENERIC',
+        data: {
+          cond: { sensor: 'forward', metric: 'min', op: '>=', value: 10 },
+          act: { accel: 0.8, turn: 'none', steer: 0.0 }
+        },
+        x: 100,
+        y: 180
+      },
+      {
+        id: uid(),
+        type: 'RULE',
+        blockType: 'RULE_GENERIC',
+        data: {
+          cond: { sensor: 'left', metric: 'min', op: '<', value: 5 },
+          act: { accel: 0.3, turn: 'right', steer: 0.5 }
+        },
+        x: 100,
+        y: 260
+      },
+      {
+        id: uid(),
+        type: 'RULE',
+        blockType: 'RULE_GENERIC',
+        data: {
+          cond: { sensor: 'right', metric: 'min', op: '<', value: 5 },
+          act: { accel: 0.3, turn: 'left', steer: -0.5 }
+        },
+        x: 100,
+        y: 340
+      }
+    ];
+    
+    setBlocks(exampleBlocks);
+  };
+
+  // Clear all blocks
+  const handleClear = () => {
+    setBlocks([]);
+  };
 
   // Render block-specific editor UI
   const renderBlockEditor = (block, template, updateBlock) => {
@@ -296,8 +355,52 @@ export default function BlockCanvasPanel({ blocks, setBlocks, onCompile }) {
         <div style={{ display:'flex', gap:8 }}>
           <span style={S.tip}>Drag background to pan</span>
           <span style={S.tip}>Ctrl/⌘ + Wheel to zoom</span>
+          {hasProgram && (
+            <span style={{...S.tip, background: isRunning ? '#22c55e' : '#ef4444'}}>
+              {isRunning ? '🏃 Running' : '⏸️ Stopped'}
+            </span>
+          )}
         </div>
-        <button style={S.run} onClick={handleRun}>▶ Run</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button 
+            style={S.solve} 
+            onClick={handleSolve}
+            title="Create a working example car program"
+          >
+            💡 Solve
+          </button>
+          <button 
+            style={{...S.clear, opacity: blocks.length > 0 ? 1 : 0.5}} 
+            onClick={handleClear}
+            disabled={blocks.length === 0}
+            title="Clear all blocks"
+          >
+            🗑️ Clear
+          </button>
+          <button 
+            style={{...S.compile, opacity: blocks.length > 0 ? 1 : 0.5}} 
+            onClick={handleCompile}
+            disabled={blocks.length === 0}
+          >
+            🔧 Compile
+          </button>
+          {hasProgram && (
+            <>
+              <button 
+                style={{...S.run, background: isRunning ? '#ef4444' : '#22c55e'}} 
+                onClick={handleRunToggle}
+              >
+                {isRunning ? '⏸️ Pause' : '▶️ Run'}
+              </button>
+              <button 
+                style={S.stop} 
+                onClick={handleStop}
+              >
+                ⏹️ Stop
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div
@@ -384,7 +487,11 @@ const S = {
   root: { flex: 1, display: 'flex', flexDirection: 'column', background: '#17181d', color: '#eee' },
   toolbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid #2a2d34' },
   tip: { background: '#222a', border: '1px solid #333', borderRadius: 8, padding: '2px 6px', fontSize: 12 },
-  run: { background: '#3b82f6', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
+  solve: { background: '#f59e0b', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
+  clear: { background: '#ef4444', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
+  compile: { background: '#8b5cf6', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
+  run: { background: '#22c55e', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
+  stop: { background: '#6b7280', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 },
 
   viewport: { position: 'relative', width: '100%', height: '100%', overflow: 'hidden', cursor: 'grab' },
   canvas: { position: 'absolute', left: 0, top: 0, background: '#15161a', borderLeft: '1px solid #222', borderTop: '1px solid #222' },

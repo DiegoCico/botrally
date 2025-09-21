@@ -17,10 +17,16 @@ export class CarAdapter {
     this.speed = 0;        // units/sec along +X in local space
     this.steer = 0;        // radians, + left
     this.wheelBase = wheelBase;
+    this.verticalVelocity = 0; // for gravity
+    this.onGround = true;
 
     // make small pivot groups so we can steer visuals around Y
     for (const key of ['FL','FR']) {
       const w = wheels[key];
+      if (!w) {
+        console.warn(`Missing wheel: ${key}`);
+        continue;
+      }
       const pivot = new THREE.Group();
       w.parent.add(pivot);
       pivot.position.copy(w.position);
@@ -32,6 +38,7 @@ export class CarAdapter {
     // helper vectors
     this._fwd = new THREE.Vector3(1,0,0);
     this._vel = new THREE.Vector3();
+    this._raycaster = new THREE.Raycaster();
   }
 
   setControls({ throttle = 0, steer = 0 }) {
@@ -40,10 +47,15 @@ export class CarAdapter {
       throttle: Math.max(-1, Math.min(1, throttle)),
       steer:    Math.max(-1, Math.min(1, steer)),
     };
+    
+    // Debug: log controls occasionally
+    if (Math.random() < 0.01) { // 1% chance to log
+      console.log(`Controls: throttle=${this.input.throttle.toFixed(2)}, steer=${this.input.steer.toFixed(2)}, speed=${this.speed.toFixed(2)}`);
+    }
   }
 
-  /** Simple kinematic bicycle + friction */
-  tick(dt) {
+  /** Simple kinematic bicycle + friction - NO TELEPORTING */
+  tick(dt, colliders = []) {
     const ACCEL = 12;             // units/s^2
     const BRAKE = 18;
     const DRAG  = 1.6;            // linear drag
@@ -74,18 +86,20 @@ export class CarAdapter {
       this.group.rotateY(yawRate * dt);
     }
 
-    // advance along local +X
+    // advance along local +X (car's forward direction)
     this._fwd.set(1,0,0).applyQuaternion(this.group.quaternion);
     this.group.position.addScaledVector(this._fwd, v * dt);
 
-    // spin wheels (visual)
-    const roll = (v * dt) / this.tireR;    // radians of spin around X
+    // spin wheels (visual) - wheels are rotated 90° so we rotate around Z, not X
+    const roll = (Math.abs(v) * dt) / this.tireR;    // radians of spin
     for (const key of ['FL','FR','RL','RR']) {
-      this.wheels[key].rotation.x += roll;
+      if (this.wheels[key]) {
+        this.wheels[key].rotation.z += roll;
+      }
     }
     // steer visuals around Y (front pivots)
-    this.wheels.FLPivot.rotation.y = this.steer;
-    this.wheels.FRPivot.rotation.y = this.steer;
+    if (this.wheels.FLPivot) this.wheels.FLPivot.rotation.y = this.steer;
+    if (this.wheels.FRPivot) this.wheels.FRPivot.rotation.y = this.steer;
   }
 
   /** Approx scalar speed for sensors */

@@ -1,4 +1,3 @@
-// src/pages/CarBlocksPage.js
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as THREE from 'three';
@@ -18,13 +17,10 @@ export default function CarBlocksPage() {
   const mountRef = useRef(null);
   const rafRef = useRef(0);
 
-  const [runtime, setRuntime] = useState(() => new BlockRuntime([
-    { if: 'f_min < 10', then: { throttle: '0.2', steer: '(r_min - l_min) * 0.06' } },
-    { if: 'f_min >= 10 && f_min < 20', then: { throttle: '0.6', steer: '(r_min - l_min) * 0.03' } },
-    { if: 'f_min >= 20', then: { throttle: '1.0', steer: '(r_min - l_min) * 0.02' } }
-  ]));
+  const [runtime, setRuntime] = useState(() => new BlockRuntime([])); // Start with empty program
+  const [isRunning, setIsRunning] = useState(false); // Track if code is running
+  const [hasProgram, setHasProgram] = useState(false); // Track if user has created a program
 
-  // Multiplayer and AI state
   const urlParams = new URLSearchParams(window.location.search);
   const lobbyCode = urlParams.get('code');
   const playerRole = urlParams.get('role');
@@ -35,23 +31,19 @@ export default function CarBlocksPage() {
 
   const [isReady, setIsReady] = useState(false);
   const [otherPlayerReady, setOtherPlayerReady] = useState(false);
-  const [otherPlayerStatus, setOtherPlayerStatus] = useState('coding'); // 'coding' | 'ready'
+  const [otherPlayerStatus, setOtherPlayerStatus] = useState('coding');
   const [lobbyClient, setLobbyClient] = useState(null);
   
-  // AI state
-  const [aiStatus, setAiStatus] = useState('thinking'); // 'thinking' | 'ready'
+  const [aiStatus, setAiStatus] = useState('thinking');
   const [aiAlgorithm, setAiAlgorithm] = useState(null);
 
-  // Initialize lobby client for multiplayer
   useEffect(() => {
     if (isMultiplayer) {
       getLobbyClient().then(client => {
         setLobbyClient(client);
         
-        // Listen for other player status updates
         const unsubscribe = client.on('lobby-message', (message) => {
           if (message.code === lobbyCode && message.data.type === 'player-status') {
-            // Only update if it's from the other player
             if (message.data.playerRole !== playerRole) {
               setOtherPlayerStatus(message.data.status);
               setOtherPlayerReady(message.data.status === 'ready');
@@ -64,23 +56,19 @@ export default function CarBlocksPage() {
         };
       }).catch(error => {
         console.error('Failed to connect to lobby:', error);
-        // Could show error UI here
       });
     }
   }, [isMultiplayer, lobbyCode, playerRole]);
 
-  // Send initial status when lobby client is ready
   useEffect(() => {
     if (lobbyClient && isMultiplayer) {
       sendStatusUpdate('coding');
     }
   }, [lobbyClient, isMultiplayer]);
 
-  // Generate AI algorithm when in AI mode
   useEffect(() => {
     if (isAI) {
       setAiStatus('thinking');
-      // Generate AI algorithm after a short delay to simulate thinking
       setTimeout(async () => {
         try {
           const playerStrategy = cerebrasAI.analyzePlayerStrategy(runtime.rules);
@@ -89,7 +77,6 @@ export default function CarBlocksPage() {
           setAiStatus('ready');
         } catch (error) {
           console.error('Failed to generate AI algorithm:', error);
-          // Use fallback algorithm
           const fallbackAlgo = cerebrasAI.getFallbackAlgorithm('flat', 'medium');
           setAiAlgorithm(fallbackAlgo);
           setAiStatus('ready');
@@ -98,7 +85,6 @@ export default function CarBlocksPage() {
     }
   }, [isAI, runtime.rules]);
 
-  // Send status updates to other player
   const sendStatusUpdate = (status) => {
     if (lobbyClient && isMultiplayer) {
       lobbyClient.send({
@@ -113,22 +99,18 @@ export default function CarBlocksPage() {
     }
   };
 
-  // Handle ready state changes
   const handleReadyToggle = () => {
     const newReadyState = !isReady;
     setIsReady(newReadyState);
     sendStatusUpdate(newReadyState ? 'ready' : 'coding');
   };
 
-  // Navigate to race when both players are ready (multiplayer) or when player is ready and AI is ready (AI mode)
   useEffect(() => {
     if (isMultiplayer && isReady && otherPlayerReady) {
-      // Small delay to show both ready state
       setTimeout(() => {
         navigate(`/multiplayerRace?code=${encodeURIComponent(lobbyCode)}&role=${playerRole}&car=${encodeURIComponent(JSON.stringify(carConfig))}&program=${encodeURIComponent(JSON.stringify(runtime.rules))}`);
       }, 1500);
     } else if (isAI && isReady && aiStatus === 'ready' && aiAlgorithm) {
-      // Navigate to AI race
       setTimeout(() => {
         navigate(`/aiRace?car=${encodeURIComponent(JSON.stringify(carConfig))}&program=${encodeURIComponent(JSON.stringify(runtime.rules))}&aiProgram=${encodeURIComponent(JSON.stringify(aiAlgorithm.rules))}&aiDifficulty=${aiAlgorithm.difficulty}`);
       }, 1500);
@@ -137,127 +119,173 @@ export default function CarBlocksPage() {
 
   const handleProgramCompiled = (program) => {
     setRuntime(new BlockRuntime(program));
-    // Send coding status when program changes
+    setHasProgram(program && program.length > 0);
+    setIsRunning(true); // Auto-start when compiling
     if (isReady) {
       setIsReady(false);
       sendStatusUpdate('coding');
     }
   };
 
+  const handleRunToggle = () => {
+    if (!hasProgram) return; // Can't run without a program
+    setIsRunning(!isRunning);
+  };
+
+  const handleStop = () => {
+    setIsRunning(false);
+  };
+
   useEffect(() => {
-    const container = mountRef.current;
-    if (!container) return;
+    let renderer, container, onResize;
 
-    // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
+    const setupScene = async () => {
+      container = mountRef.current;
+      if (!container) return;
 
-    // Scene + Camera
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x16181e);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio || 1);
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      container.appendChild(renderer.domElement);
 
-    const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 500);
-    camera.position.set(16, 10, 16);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x16181e);
 
-    // Lights
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x334466, 0.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-    sun.position.set(12, 18, 8);
-    sun.castShadow = true;
-    scene.add(sun);
+      const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 500);
+      camera.position.set(16, 10, 16);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
 
-    // Ground + simple obstacles
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(200, 200),
-      new THREE.MeshStandardMaterial({ color: 0x3b3f49 })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x334466, 0.6));
+      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+      sun.position.set(12, 18, 8);
+      sun.castShadow = true;
+      scene.add(sun);
 
-    const obstacles = [];
-    for (let i = 0; i < 8; i++) {
-      const box = new THREE.Mesh(
-        new THREE.BoxGeometry(2, 1, 2),
-        new THREE.MeshStandardMaterial({ color: 0x854444 })
+      const ground = new THREE.Mesh( new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x3b3f49 }));
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // Create a red target wall that the car should face
+      const targetWall = new THREE.Mesh(
+        new THREE.BoxGeometry(20, 3, 1), 
+        new THREE.MeshStandardMaterial({ color: 0xff0000 })
       );
-      box.position.set((Math.random() - 0.5) * 60, 0.5, (Math.random() - 0.5) * 60);
-      box.castShadow = true;
-      box.receiveShadow = true;
-      scene.add(box);
-      obstacles.push(box);
-    }
-    const colliders = [ground, ...obstacles];
+      targetWall.position.set(0, 1.5, 25); // 25 units ahead of car
+      targetWall.castShadow = true;
+      scene.add(targetWall);
 
-    // Car
-    const { group, wheels } = buildLowPolyCar({ scale: 0.5, wheelType: 'sporty' });
-    group.position.set(0, 0.55, 0);
-    group.castShadow = true;
-    scene.add(group);
+      // Create obstacles around the area
+      const obstacles = [targetWall];
+      for (let i = 0; i < 8; i++) {
+        const box = new THREE.Mesh( new THREE.BoxGeometry(2, 1, 2), new THREE.MeshStandardMaterial({ color: 0x854444 }));
+        box.position.set((Math.random() - 0.5) * 60, 0.5, (Math.random() - 0.5) * 60);
+        box.castShadow = true;
+        scene.add(box);
+        obstacles.push(box);
+      }
+      const colliders = [ground, ...obstacles];
 
-    // Adapter + Specs (per-car)
-    const car = new CarAdapter({ group, wheels }, { wheelBase: 2.7, tireRadius: 0.55, maxSteerRad: THREE.MathUtils.degToRad(30) });
-    const carSpecs = { maxSpeedFwd: 28, maxSpeedRev: 7, maxAccel: 12, maxBrake: 18 };
-    const limiter = new SafetyLimiter({ adapter: car, carSpecs });
+      // Map car configuration to buildLowPolyCar parameters
+      const getBodyColor = (bodyId) => {
+        const bodyColors = {
+          'mk1': 0xc0455e,
+          'blue': 0x3366ff,
+          'green': 0x33cc66
+        };
+        return bodyColors[bodyId] || 0x34d399;
+      };
 
-    const sensors = new SensorRig(group, { rayLength: 35 });
+      const { group, wheels } = await buildLowPolyCar({
+        scale: 0.5,
+        wheelType: carConfig?.wheels || 'standard',
+        spoilerType: carConfig?.spoiler || 'none',
+        bodyColor: getBodyColor(carConfig?.body),
+      });
+      group.position.set(0, 0.55, 0);
+      group.castShadow = true;
+      scene.add(group);
 
-    const clock = new THREE.Clock();
+      const car = new CarAdapter({ group, wheels }, { wheelBase: 2.7, tireRadius: 0.55, maxSteerRad: THREE.MathUtils.degToRad(30) });
+      const carSpecs = { maxSpeedFwd: 28, maxSpeedRev: 7, maxAccel: 12, maxBrake: 18 };
+      const limiter = new SafetyLimiter({ adapter: car, carSpecs });
+      const sensors = new SensorRig(group, { rayLength: 35 });
+      const clock = new THREE.Clock();
 
-    const onResize = () => {
-      const w = container.clientWidth, h = container.clientHeight;
-      renderer.setSize(w, h);
-      camera.aspect = w / h; camera.updateProjectionMatrix();
+      onResize = () => {
+        const w = container.clientWidth, h = container.clientHeight;
+        renderer.setSize(w, h);
+        camera.aspect = w / h; camera.updateProjectionMatrix();
+      };
+      window.addEventListener('resize', onResize);
+
+      const loop = () => {
+        const dt = clock.getDelta();
+        controls.update();
+
+        // Only run user code if isRunning is true and we have a program
+        if (isRunning && hasProgram) {
+          const sensorData = sensors.sample(colliders);
+          const desired = runtime.step({ sensors: sensorData, speed: car.getScalarSpeed() });
+          const safe = limiter.filterControls(desired, car.getScalarSpeed());
+          car.setControls(safe);
+        } else {
+          // Car is stopped - no controls
+          car.setControls({ throttle: 0, steer: 0 });
+        }
+        
+        car.tick(dt, colliders);
+
+        renderer.render(scene, camera);
+        rafRef.current = requestAnimationFrame(loop);
+      };
+      loop();
     };
-    window.addEventListener('resize', onResize);
 
-    const loop = () => {
-      const dt = clock.getDelta();
-      controls.update();
-
-      const sensorData = sensors.sample(colliders);
-      const desired = runtime.step({ sensors: sensorData, speed: car.getScalarSpeed() });
-      const safe = limiter.filterControls(desired, car.getScalarSpeed());
-
-      car.setControls(safe);
-      car.tick(dt);
-
-      renderer.render(scene, camera);
-      rafRef.current = requestAnimationFrame(loop);
-    };
-    loop();
+    setupScene();
 
     return () => {
-      cancelAnimationFrame(rafRef.current);
-      window.removeEventListener('resize', onResize);
-      container.removeChild(renderer.domElement);
-      renderer.dispose();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (onResize) window.removeEventListener('resize', onResize);
+      if (container && renderer) container.removeChild(renderer.domElement);
+      if (renderer) renderer.dispose();
     };
-  }, [runtime]);
+  }, [runtime, carConfig, isRunning, hasProgram]);
 
   return (
     <div style={{ display: 'grid', gridTemplateRows: '1fr 360px', height: '100vh' }}>
       <div style={{ position: 'relative' }}>
         <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
         
-        {/* Multiplayer Status Overlay */}
-        {isMultiplayer && (
+        {/* Car Status Overlay */}
+        <div style={{
+          position: 'absolute',
+          top: '20px',
+          left: '20px',
+          background: 'rgba(0, 0, 0, 0.8)',
+          padding: '10px 15px',
+          borderRadius: '8px',
+          color: 'white',
+          fontFamily: 'monospace',
+          fontSize: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
           <div style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px',
-            background: 'rgba(0, 0, 0, 0.8)',
-            padding: '15px',
-            borderRadius: '10px',
-            color: 'white',
-            fontFamily: 'monospace',
-            fontSize: '14px',
-            minWidth: '250px'
-          }}>
+            width: '12px',
+            height: '12px',
+            borderRadius: '50%',
+            background: hasProgram ? (isRunning ? '#22c55e' : '#ef4444') : '#6b7280'
+          }} />
+          <span>
+            {!hasProgram ? '⚙️ No Program' : isRunning ? '🏃 Car Running' : '⏸️ Car Stopped'}
+          </span>
+        </div>
+        
+        {isMultiplayer && (
+          <div style={{ position: 'absolute', top: '20px', right: '20px', background: 'rgba(0, 0, 0, 0.8)', padding: '15px', borderRadius: '10px', color: 'white', fontFamily: 'monospace', fontSize: '14px', minWidth: '250px' }}>
             <div style={{ marginBottom: '10px', fontWeight: 'bold', fontSize: '16px' }}>
               🏁 Multiplayer Lobby
             </div>
@@ -270,32 +298,13 @@ export default function CarBlocksPage() {
               </span>
             </div>
             
-            {/* Player Status */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '1fr 1fr', 
-              gap: '10px', 
-              marginBottom: '15px',
-              fontSize: '12px'
-            }}>
-              <div style={{
-                padding: '8px',
-                borderRadius: '6px',
-                background: isReady ? 'rgba(0, 255, 0, 0.2)' : 'rgba(255, 165, 0, 0.2)',
-                border: `1px solid ${isReady ? '#00ff00' : '#ffa500'}`,
-                textAlign: 'center'
-              }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px', fontSize: '12px' }}>
+              <div style={{ padding: '8px', borderRadius: '6px', background: isReady ? 'rgba(0, 255, 0, 0.2)' : 'rgba(255, 165, 0, 0.2)', border: `1px solid ${isReady ? '#00ff00' : '#ffa500'}`, textAlign: 'center' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>You</div>
                 <div>{isReady ? '✅ Ready' : '⚙️ Coding'}</div>
               </div>
               
-              <div style={{
-                padding: '8px',
-                borderRadius: '6px',
-                background: otherPlayerReady ? 'rgba(0, 255, 0, 0.2)' : 'rgba(255, 165, 0, 0.2)',
-                border: `1px solid ${otherPlayerReady ? '#00ff00' : '#ffa500'}`,
-                textAlign: 'center'
-              }}>
+              <div style={{ padding: '8px', borderRadius: '6px', background: otherPlayerReady ? 'rgba(0, 255, 0, 0.2)' : 'rgba(255, 165, 0, 0.2)', border: `1px solid ${otherPlayerReady ? '#00ff00' : '#ffa500'}`, textAlign: 'center' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
                   {playerRole === 'p1' ? 'Player 2' : 'Host'}
                 </div>
@@ -303,56 +312,23 @@ export default function CarBlocksPage() {
               </div>
             </div>
 
-            {/* Ready Button */}
             <button
               onClick={handleReadyToggle}
-              style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: '6px',
-                border: 'none',
-                background: isReady ? '#ff4444' : '#00ff00',
-                color: 'white',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                fontSize: '14px',
-                transition: 'all 0.2s'
-              }}
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: 'none', background: isReady ? '#ff4444' : '#00ff00', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }}
             >
               {isReady ? '❌ Not Ready' : '✅ Ready to Race!'}
             </button>
 
-            {/* Both Ready Message */}
             {isReady && otherPlayerReady && (
-              <div style={{
-                marginTop: '10px',
-                padding: '10px',
-                background: 'rgba(0, 255, 0, 0.3)',
-                borderRadius: '6px',
-                textAlign: 'center',
-                fontWeight: 'bold',
-                animation: 'pulse 1s infinite'
-              }}>
+              <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0, 255, 0, 0.3)', borderRadius: '6px', textAlign: 'center', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>
                 🚀 Both players ready! Starting race...
               </div>
             )}
           </div>
         )}
 
-        {/* AI Status Overlay */}
         {isAI && (
-          <div style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px',
-            background: 'rgba(0, 0, 0, 0.8)',
-            padding: '15px',
-            borderRadius: '10px',
-            color: 'white',
-            fontFamily: 'monospace',
-            fontSize: '14px',
-            minWidth: '250px'
-          }}>
+          <div style={{ position: 'absolute', top: '20px', right: '20px', background: 'rgba(0, 0, 0, 0.8)', padding: '15px', borderRadius: '10px', color: 'white', fontFamily: 'monospace', fontSize: '14px', minWidth: '250px' }}>
             <div style={{ marginBottom: '10px', fontWeight: 'bold', fontSize: '16px' }}>
               🤖 AI Opponent Mode
             </div>
@@ -360,46 +336,20 @@ export default function CarBlocksPage() {
               Opponent: <span style={{ color: '#00ffff', fontWeight: 'bold' }}>Cerebras AI</span>
             </div>
             
-            {/* Player vs AI Status */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '1fr 1fr', 
-              gap: '10px', 
-              marginBottom: '15px',
-              fontSize: '12px'
-            }}>
-              <div style={{
-                padding: '8px',
-                borderRadius: '6px',
-                background: isReady ? 'rgba(0, 255, 0, 0.2)' : 'rgba(255, 165, 0, 0.2)',
-                border: `1px solid ${isReady ? '#00ff00' : '#ffa500'}`,
-                textAlign: 'center'
-              }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px', fontSize: '12px' }}>
+              <div style={{ padding: '8px', borderRadius: '6px', background: isReady ? 'rgba(0, 255, 0, 0.2)' : 'rgba(255, 165, 0, 0.2)', border: `1px solid ${isReady ? '#00ff00' : '#ffa500'}`, textAlign: 'center' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>You</div>
                 <div>{isReady ? '✅ Ready' : '⚙️ Coding'}</div>
               </div>
               
-              <div style={{
-                padding: '8px',
-                borderRadius: '6px',
-                background: aiStatus === 'ready' ? 'rgba(0, 255, 255, 0.2)' : 'rgba(255, 165, 0, 0.2)',
-                border: `1px solid ${aiStatus === 'ready' ? '#00ffff' : '#ffa500'}`,
-                textAlign: 'center'
-              }}>
+              <div style={{ padding: '8px', borderRadius: '6px', background: aiStatus === 'ready' ? 'rgba(0, 255, 255, 0.2)' : 'rgba(255, 165, 0, 0.2)', border: `1px solid ${aiStatus === 'ready' ? '#00ffff' : '#ffa500'}`, textAlign: 'center' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>AI</div>
                 <div>{aiStatus === 'ready' ? '🤖 Ready' : '🧠 Thinking...'}</div>
               </div>
             </div>
 
-            {/* AI Algorithm Info */}
             {aiAlgorithm && (
-              <div style={{
-                marginBottom: '15px',
-                padding: '8px',
-                background: 'rgba(0, 255, 255, 0.1)',
-                borderRadius: '6px',
-                fontSize: '11px'
-              }}>
+              <div style={{ marginBottom: '15px', padding: '8px', background: 'rgba(0, 255, 255, 0.1)', borderRadius: '6px', fontSize: '11px' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>AI Strategy:</div>
                 <div>Difficulty: {aiAlgorithm.difficulty}</div>
                 <div>Rules: {aiAlgorithm.rules.length}</div>
@@ -407,36 +357,15 @@ export default function CarBlocksPage() {
               </div>
             )}
 
-            {/* Ready Button */}
             <button
               onClick={handleReadyToggle}
-              style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: '6px',
-                border: 'none',
-                background: isReady ? '#ff4444' : '#00ff00',
-                color: 'white',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                fontSize: '14px',
-                transition: 'all 0.2s'
-              }}
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: 'none', background: isReady ? '#ff4444' : '#00ff00', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }}
             >
               {isReady ? '❌ Not Ready' : '✅ Ready to Race AI!'}
             </button>
 
-            {/* Both Ready Message */}
             {isReady && aiStatus === 'ready' && (
-              <div style={{
-                marginTop: '10px',
-                padding: '10px',
-                background: 'rgba(0, 255, 255, 0.3)',
-                borderRadius: '6px',
-                textAlign: 'center',
-                fontWeight: 'bold',
-                animation: 'pulse 1s infinite'
-              }}>
+              <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0, 255, 255, 0.3)', borderRadius: '6px', textAlign: 'center', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>
                 🚀 Ready to race AI! Starting...
               </div>
             )}
@@ -444,7 +373,13 @@ export default function CarBlocksPage() {
         )}
       </div>
       
-      <BlockWorkbench onProgramCompiled={handleProgramCompiled} />
+      <BlockWorkbench 
+        onProgramCompiled={handleProgramCompiled}
+        isRunning={isRunning}
+        hasProgram={hasProgram}
+        onRunToggle={handleRunToggle}
+        onStop={handleStop}
+      />
       
       <style>{`
         @keyframes pulse {

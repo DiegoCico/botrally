@@ -17,9 +17,11 @@ export default function CarBlocksPage() {
   const mountRef = useRef(null);
   const rafRef = useRef(0);
 
-  const [runtime, setRuntime] = useState(() => new BlockRuntime([])); // Start with empty program
-  const [isRunning, setIsRunning] = useState(false); // Track if code is running
-  const [hasProgram, setHasProgram] = useState(false); // Track if user has created a program
+  const [runtime, setRuntime] = useState(() => new BlockRuntime([
+    { if: 'f_min < 10', then: { throttle: '0.2', steer: '(r_min - l_min) * 0.06' } },
+    { if: 'f_min >= 10 && f_min < 20', then: { throttle: '0.6', steer: '(r_min - l_min) * 0.03' } },
+    { if: 'f_min >= 20', then: { throttle: '1.0', steer: '(r_min - l_min) * 0.02' } }
+  ]));
 
   const urlParams = new URLSearchParams(window.location.search);
   const lobbyCode = urlParams.get('code');
@@ -119,21 +121,10 @@ export default function CarBlocksPage() {
 
   const handleProgramCompiled = (program) => {
     setRuntime(new BlockRuntime(program));
-    setHasProgram(program && program.length > 0);
-    setIsRunning(true); // Auto-start when compiling
     if (isReady) {
       setIsReady(false);
       sendStatusUpdate('coding');
     }
-  };
-
-  const handleRunToggle = () => {
-    if (!hasProgram) return; // Can't run without a program
-    setIsRunning(!isRunning);
-  };
-
-  const handleStop = () => {
-    setIsRunning(false);
   };
 
   useEffect(() => {
@@ -167,17 +158,7 @@ export default function CarBlocksPage() {
       ground.receiveShadow = true;
       scene.add(ground);
 
-      // Create a red target wall that the car should face
-      const targetWall = new THREE.Mesh(
-        new THREE.BoxGeometry(20, 3, 1), 
-        new THREE.MeshStandardMaterial({ color: 0xff0000 })
-      );
-      targetWall.position.set(0, 1.5, 25); // 25 units ahead of car
-      targetWall.castShadow = true;
-      scene.add(targetWall);
-
-      // Create obstacles around the area
-      const obstacles = [targetWall];
+      const obstacles = [];
       for (let i = 0; i < 8; i++) {
         const box = new THREE.Mesh( new THREE.BoxGeometry(2, 1, 2), new THREE.MeshStandardMaterial({ color: 0x854444 }));
         box.position.set((Math.random() - 0.5) * 60, 0.5, (Math.random() - 0.5) * 60);
@@ -187,21 +168,11 @@ export default function CarBlocksPage() {
       }
       const colliders = [ground, ...obstacles];
 
-      // Map car configuration to buildLowPolyCar parameters
-      const getBodyColor = (bodyId) => {
-        const bodyColors = {
-          'mk1': 0xc0455e,
-          'blue': 0x3366ff,
-          'green': 0x33cc66
-        };
-        return bodyColors[bodyId] || 0x34d399;
-      };
-
       const { group, wheels } = await buildLowPolyCar({
         scale: 0.5,
-        wheelType: carConfig?.wheels || 'standard',
+        wheelType: carConfig?.wheels || 'slim',
         spoilerType: carConfig?.spoiler || 'none',
-        bodyColor: getBodyColor(carConfig?.body),
+        bodyColor: carConfig?.bodyColor || 0x34d399,
       });
       group.position.set(0, 0.55, 0);
       group.castShadow = true;
@@ -224,18 +195,11 @@ export default function CarBlocksPage() {
         const dt = clock.getDelta();
         controls.update();
 
-        // Only run user code if isRunning is true and we have a program
-        if (isRunning && hasProgram) {
-          const sensorData = sensors.sample(colliders);
-          const desired = runtime.step({ sensors: sensorData, speed: car.getScalarSpeed() });
-          const safe = limiter.filterControls(desired, car.getScalarSpeed());
-          car.setControls(safe);
-        } else {
-          // Car is stopped - no controls
-          car.setControls({ throttle: 0, steer: 0 });
-        }
-        
-        car.tick(dt, colliders);
+        const sensorData = sensors.sample(colliders);
+        const desired = runtime.step({ sensors: sensorData, speed: car.getScalarSpeed() });
+        const safe = limiter.filterControls(desired, car.getScalarSpeed());
+        car.setControls(safe);
+        car.tick(dt);
 
         renderer.render(scene, camera);
         rafRef.current = requestAnimationFrame(loop);
@@ -251,38 +215,12 @@ export default function CarBlocksPage() {
       if (container && renderer) container.removeChild(renderer.domElement);
       if (renderer) renderer.dispose();
     };
-  }, [runtime, carConfig, isRunning, hasProgram]);
+  }, [runtime]);
 
   return (
     <div style={{ display: 'grid', gridTemplateRows: '1fr 360px', height: '100vh' }}>
       <div style={{ position: 'relative' }}>
         <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
-        
-        {/* Car Status Overlay */}
-        <div style={{
-          position: 'absolute',
-          top: '20px',
-          left: '20px',
-          background: 'rgba(0, 0, 0, 0.8)',
-          padding: '10px 15px',
-          borderRadius: '8px',
-          color: 'white',
-          fontFamily: 'monospace',
-          fontSize: '14px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px'
-        }}>
-          <div style={{
-            width: '12px',
-            height: '12px',
-            borderRadius: '50%',
-            background: hasProgram ? (isRunning ? '#22c55e' : '#ef4444') : '#6b7280'
-          }} />
-          <span>
-            {!hasProgram ? '⚙️ No Program' : isRunning ? '🏃 Car Running' : '⏸️ Car Stopped'}
-          </span>
-        </div>
         
         {isMultiplayer && (
           <div style={{ position: 'absolute', top: '20px', right: '20px', background: 'rgba(0, 0, 0, 0.8)', padding: '15px', borderRadius: '10px', color: 'white', fontFamily: 'monospace', fontSize: '14px', minWidth: '250px' }}>
@@ -373,13 +311,7 @@ export default function CarBlocksPage() {
         )}
       </div>
       
-      <BlockWorkbench 
-        onProgramCompiled={handleProgramCompiled}
-        isRunning={isRunning}
-        hasProgram={hasProgram}
-        onRunToggle={handleRunToggle}
-        onStop={handleStop}
-      />
+      <BlockWorkbench onProgramCompiled={handleProgramCompiled} />
       
       <style>{`
         @keyframes pulse {

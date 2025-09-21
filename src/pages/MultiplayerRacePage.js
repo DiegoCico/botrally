@@ -14,7 +14,6 @@ import { buildHillyTrack } from '../components/tracks/HillyTrack';
 import { buildTechnicalTrack } from '../components/tracks/TechnicalTrack';
 import { addLightsAndGround } from '../components/tracks/TrackUtils';
 import { getLobbyClient } from '../net/websocket-lobby';
-import { RaceTracker, getRandomTrack, getStartingPositions, createThirdPersonCamera } from '../utils/raceUtils';
 
 const TRACKS = {
   flat: { name: 'Flat Track', builder: buildFlatTrack },
@@ -29,13 +28,7 @@ export default function MultiplayerRacePage() {
   const [gameState, setGameState] = useState('waiting'); // waiting, racing, finished
   const [raceTime, setRaceTime] = useState(0);
   const [playerPositions, setPlayerPositions] = useState({ p1: 0, p2: 0 });
-  const [selectedTrack, setSelectedTrack] = useState(getRandomTrack()); // Random track selection
-  const [raceTracker, setRaceTracker] = useState(null);
-  const [playerLaps, setPlayerLaps] = useState({ p1: 0, p2: 0 });
-  const [racePosition, setRacePosition] = useState(1);
-  const [hasGivenUp, setHasGivenUp] = useState(false);
-  const [winner, setWinner] = useState(null);
-  const [lobbyClient, setLobbyClient] = useState(null);
+  const [selectedTrack, setSelectedTrack] = useState('flat');
 
   // Get lobby parameters
   const urlParams = new URLSearchParams(window.location.search);
@@ -43,46 +36,6 @@ export default function MultiplayerRacePage() {
   const playerRole = urlParams.get('role');
   const carConfig = JSON.parse(decodeURIComponent(urlParams.get('car') || '{}'));
   const playerProgram = urlParams.get('program') ? JSON.parse(decodeURIComponent(urlParams.get('program'))) : null;
-
-  // Initialize lobby client for give up functionality
-  useEffect(() => {
-    if (lobbyCode && playerRole) {
-      getLobbyClient().then(client => {
-        setLobbyClient(client);
-        
-        // Listen for give up messages
-        client.on('lobby-message', (message) => {
-          if (message.code === lobbyCode && message.data.type === 'give-up') {
-            if (message.data.playerRole !== playerRole) {
-              // Other player gave up, we win!
-              setWinner(playerRole);
-              setGameState('finished');
-            }
-          }
-        });
-      }).catch(error => {
-        console.error('Failed to connect to lobby:', error);
-      });
-    }
-  }, [lobbyCode, playerRole]);
-
-  const handleGiveUp = () => {
-    if (lobbyClient && !hasGivenUp && gameState === 'racing') {
-      setHasGivenUp(true);
-      setWinner(playerRole === 'p1' ? 'p2' : 'p1');
-      setGameState('finished');
-      
-      // Notify other player
-      lobbyClient.send({
-        type: 'lobby-message',
-        code: lobbyCode,
-        data: {
-          type: 'give-up',
-          playerRole: playerRole
-        }
-      });
-    }
-  };
 
   useEffect(() => {
     if (!lobbyCode || !playerRole) {
@@ -120,13 +73,6 @@ export default function MultiplayerRacePage() {
     const trackGroup = trackData?.group ?? trackData;
     if (trackGroup) scene.add(trackGroup);
 
-    // Initialize race tracker
-    const tracker = new RaceTracker(trackData.curve, 3); // 3 laps
-    setRaceTracker(tracker);
-
-    // Get starting positions on the track
-    const startingPositions = getStartingPositions(trackData.curve, 2);
-
     // Create cars for both players
     const cars = {};
     const adapters = {};
@@ -134,13 +80,13 @@ export default function MultiplayerRacePage() {
     const limiters = {};
     const runtimes = {};
 
-    // Player 1 car (red for current player, blue for other)
+    // Player 1 car (red)
     const { group: car1Group, wheels: car1Wheels } = buildLowPolyCar({ 
       scale: 0.6, 
       wheelType: carConfig.wheels || 'standard',
       bodyColor: playerRole === 'p1' ? 0xff4444 : 0x4444ff
     });
-    car1Group.position.copy(startingPositions[0]);
+    car1Group.position.set(-5, 1, 0);
     scene.add(car1Group);
     
     cars.p1 = car1Group;
@@ -162,13 +108,13 @@ export default function MultiplayerRacePage() {
     ];
     runtimes.p1 = new BlockRuntime(p1Program);
 
-    // Player 2 car (red for current player, blue for other)
+    // Player 2 car (blue)
     const { group: car2Group, wheels: car2Wheels } = buildLowPolyCar({ 
       scale: 0.6, 
       wheelType: carConfig.wheels || 'standard',
       bodyColor: playerRole === 'p2' ? 0xff4444 : 0x4444ff
     });
-    car2Group.position.copy(startingPositions[1]);
+    car2Group.position.set(5, 1, 0);
     scene.add(car2Group);
     
     cars.p2 = car2Group;
@@ -204,14 +150,9 @@ export default function MultiplayerRacePage() {
     const clock = new THREE.Clock();
     let startTime = null;
 
-    // Add players to race tracker
-    tracker.addPlayer('p1', car1Group.position);
-    tracker.addPlayer('p2', car2Group.position);
-
-    // Third-person camera setup
+    // Camera follow logic
     const followCar = cars[playerRole];
-    const { camera: thirdPersonCamera, updateCamera } = createThirdPersonCamera(followCar, scene);
-    camera.copy(thirdPersonCamera);
+    const cameraOffset = new THREE.Vector3(0, 15, 25);
 
     const onResize = () => {
       const w = container.clientWidth, h = container.clientHeight;
@@ -239,7 +180,7 @@ export default function MultiplayerRacePage() {
 
       // Update both cars
       Object.keys(cars).forEach(playerId => {
-        if (gameState === 'racing' && !hasGivenUp) {
+        if (gameState === 'racing') {
           const sensorData = sensors[playerId].sample(colliders);
           const desired = runtimes[playerId].step({ 
             sensors: sensorData, 
@@ -249,42 +190,20 @@ export default function MultiplayerRacePage() {
           adapters[playerId].setControls(safe);
         }
         adapters[playerId].tick(dt);
-        
-        // Update race tracker
-        if (tracker) {
-          tracker.updatePlayer(playerId, cars[playerId].position);
-        }
       });
 
-      // Update third-person camera
-      updateCamera();
-
-      // Update race progress
-      if (tracker) {
-        const p1Progress = tracker.getPlayerProgress('p1');
-        const p2Progress = tracker.getPlayerProgress('p2');
-        
-        if (p1Progress && p2Progress) {
-          setPlayerLaps({
-            p1: p1Progress.currentLap,
-            p2: p2Progress.currentLap
-          });
-          
-          setPlayerPositions({
-            p1: p1Progress.position,
-            p2: p2Progress.position
-          });
-          
-          setRacePosition(tracker.getPositionOnTrack(playerRole));
-          
-          // Check for race finish
-          if (tracker.isRaceFinished() && !winner) {
-            const raceWinner = tracker.getWinner();
-            setWinner(raceWinner);
-            setGameState('finished');
-          }
-        }
+      // Camera follows player's car
+      if (followCar) {
+        const targetPos = followCar.position.clone().add(cameraOffset);
+        camera.position.lerp(targetPos, 0.05);
+        camera.lookAt(followCar.position);
       }
+
+      // Update positions for UI
+      setPlayerPositions({
+        p1: cars.p1.position.distanceTo(new THREE.Vector3(0, 0, 0)),
+        p2: cars.p2.position.distanceTo(new THREE.Vector3(0, 0, 0))
+      });
 
       renderer.render(scene, camera);
       rafRef.current = requestAnimationFrame(loop);
@@ -312,186 +231,137 @@ export default function MultiplayerRacePage() {
       {/* 3D Scene */}
       <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
       
-      {/* Race HUD - Top Right */}
+      {/* UI Overlay */}
       <div style={{
         position: 'absolute',
-        top: '20px',
-        right: '20px',
-        background: 'rgba(0, 0, 0, 0.8)',
-        padding: '15px',
-        borderRadius: '10px',
+        top: 0,
+        left: 0,
+        right: 0,
+        padding: '20px',
+        background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%)',
         color: 'white',
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        minWidth: '200px'
+        fontFamily: 'monospace'
       }}>
-        {/* Lap Counter */}
-        <div style={{ marginBottom: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: '14px', opacity: 0.8 }}>LAP</div>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-            {playerLaps[playerRole]} / 3
+            🏁 Multiplayer Race
+          </div>
+          <div style={{ fontSize: '18px' }}>
+            Code: <span style={{ color: '#ff6b9d' }}>{lobbyCode}</span>
           </div>
         </div>
-        
-        {/* Timer */}
-        <div style={{ marginBottom: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: '14px', opacity: 0.8 }}>TIME</div>
-          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-            {formatTime(raceTime)}
+
+        {/* Race Status */}
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+          <div style={{ 
+            padding: '8px 16px', 
+            background: gameState === 'waiting' ? '#ff6b00' : gameState === 'racing' ? '#00ff6b' : '#6b00ff',
+            borderRadius: '20px',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}>
+            {gameState === 'waiting' ? '⏳ Starting...' : gameState === 'racing' ? '🏃 Racing!' : '🏆 Finished!'}
           </div>
+          
+          {gameState === 'racing' && (
+            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+              Time: {formatTime(raceTime)}
+            </div>
+          )}
         </div>
-        
-        {/* Position */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '14px', opacity: 0.8 }}>POSITION</div>
-          <div style={{ fontSize: '20px', fontWeight: 'bold', color: racePosition === 1 ? '#00ff00' : '#ff6b9d' }}>
-            {racePosition} / 2
+
+        {/* Player Status */}
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '1fr 1fr', 
+          gap: '10px', 
+          marginTop: '15px',
+          maxWidth: '400px'
+        }}>
+          <div style={{
+            padding: '10px',
+            background: playerRole === 'p1' ? 'rgba(255, 68, 68, 0.3)' : 'rgba(68, 68, 255, 0.3)',
+            borderRadius: '8px',
+            border: playerRole === 'p1' ? '2px solid #ff4444' : '1px solid rgba(255,255,255,0.2)'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+              {playerRole === 'p1' ? '👑 You (Host)' : '🎮 Player 1'}
+            </div>
+            <div style={{ fontSize: '12px', opacity: 0.8 }}>
+              Distance: {playerPositions.p1.toFixed(1)}m
+            </div>
+          </div>
+          
+          <div style={{
+            padding: '10px',
+            background: playerRole === 'p2' ? 'rgba(255, 68, 68, 0.3)' : 'rgba(68, 68, 255, 0.3)',
+            borderRadius: '8px',
+            border: playerRole === 'p2' ? '2px solid #ff4444' : '1px solid rgba(255,255,255,0.2)'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+              {playerRole === 'p2' ? '👑 You (Player 2)' : '🎮 Player 2'}
+            </div>
+            <div style={{ fontSize: '12px', opacity: 0.8 }}>
+              Distance: {playerPositions.p2.toFixed(1)}m
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Track Name - Top Left */}
-      <div style={{
-        position: 'absolute',
-        top: '20px',
-        left: '20px',
-        background: 'rgba(0, 0, 0, 0.8)',
-        padding: '10px 15px',
-        borderRadius: '8px',
-        color: 'white',
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        fontWeight: 'bold'
-      }}>
-        🏁 {TRACKS[selectedTrack].name}
-      </div>
-
-      {/* Give Up Button - Bottom Center */}
-      {gameState === 'racing' && !hasGivenUp && (
-        <div style={{
-          position: 'absolute',
-          bottom: '30px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          textAlign: 'center'
-        }}>
-          <button
-            onClick={handleGiveUp}
-            style={{
-              padding: '12px 24px',
-              background: 'rgba(255, 0, 0, 0.8)',
-              border: '2px solid #ff4444',
-              borderRadius: '8px',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background = 'rgba(255, 0, 0, 1)';
-              e.target.style.transform = 'scale(1.05)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = 'rgba(255, 0, 0, 0.8)';
-              e.target.style.transform = 'scale(1)';
-            }}
-          >
-            🏳️ Give Up
-          </button>
-        </div>
-      )}
-
-      {/* Race Results */}
-      {gameState === 'finished' && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          background: 'rgba(0,0,0,0.95)',
-          padding: '40px',
-          borderRadius: '20px',
-          color: 'white',
-          textAlign: 'center',
-          minWidth: '400px',
-          border: '2px solid #ff6b9d'
-        }}>
-          <div style={{ fontSize: '48px', marginBottom: '20px' }}>
-            {winner === playerRole ? '🏆' : hasGivenUp ? '🏳️' : '😔'}
-          </div>
-          <div style={{ fontSize: '32px', marginBottom: '20px', fontWeight: 'bold' }}>
-            {winner === playerRole ? 'Victory!' : 
-             hasGivenUp ? 'You Gave Up' : 
-             'You Lost'}
-          </div>
-          <div style={{ fontSize: '18px', marginBottom: '30px', opacity: 0.8 }}>
-            {hasGivenUp ? 'Better luck next time!' : 
-             winner === playerRole ? 'Congratulations on your win!' : 
-             'Great race! Try again?'}
-          </div>
-          <div style={{ fontSize: '16px', marginBottom: '30px' }}>
-            <div>Final Time: {formatTime(raceTime)}</div>
-            <div>Track: {TRACKS[selectedTrack].name}</div>
-          </div>
-          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-            <button
-              onClick={() => window.location.reload()}
-              style={{
-                padding: '12px 24px',
-                background: '#00ff00',
-                border: 'none',
-                borderRadius: '8px',
-                color: '#000',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                fontSize: '16px'
-              }}
-            >
-              Race Again
-            </button>
-            <button
-              onClick={() => navigate('/')}
-              style={{
-                padding: '12px 24px',
-                background: 'rgba(255,255,255,0.2)',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: '8px',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '16px'
-              }}
-            >
-              Home
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Starting Countdown */}
+      {/* Track Selection (only show before race starts) */}
       {gameState === 'waiting' && (
         <div style={{
           position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          background: 'rgba(0,0,0,0.9)',
-          padding: '30px',
-          borderRadius: '15px',
-          color: 'white',
-          textAlign: 'center',
-          fontSize: '24px',
-          fontWeight: 'bold'
+          bottom: '20px',
+          left: '20px',
+          right: '20px',
+          background: 'rgba(0,0,0,0.8)',
+          padding: '15px',
+          borderRadius: '10px',
+          color: 'white'
         }}>
-          <div style={{ marginBottom: '20px' }}>🏁 Get Ready!</div>
-          <div style={{ fontSize: '18px', opacity: 0.8 }}>
-            Track: {TRACKS[selectedTrack].name}
-          </div>
-          <div style={{ fontSize: '16px', marginTop: '10px', opacity: 0.6 }}>
-            Race starting in 3 seconds...
+          <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>Select Track:</div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {Object.entries(TRACKS).map(([key, track]) => (
+              <button
+                key={key}
+                onClick={() => setSelectedTrack(key)}
+                style={{
+                  padding: '8px 16px',
+                  background: selectedTrack === key ? '#ff6b9d' : 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                {track.name}
+              </button>
+            ))}
           </div>
         </div>
       )}
+
+      {/* Back button */}
+      <button
+        onClick={() => navigate('/')}
+        style={{
+          position: 'absolute',
+          top: '20px',
+          right: '20px',
+          padding: '10px 20px',
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.3)',
+          borderRadius: '6px',
+          color: 'white',
+          cursor: 'pointer',
+          fontSize: '14px'
+        }}
+      >
+        ← Back to Home
+      </button>
     </div>
   );
 }

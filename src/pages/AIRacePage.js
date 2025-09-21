@@ -13,7 +13,6 @@ import { buildFlatTrack } from '../components/tracks/FlatTrack';
 import { buildHillyTrack } from '../components/tracks/HillyTrack';
 import { buildTechnicalTrack } from '../components/tracks/TechnicalTrack';
 import { addLightsAndGround } from '../components/tracks/TrackUtils';
-import { RaceTracker, getRandomTrack, getStartingPositions, createThirdPersonCamera } from '../utils/raceUtils';
 
 const TRACKS = {
   flat: { name: 'Flat Track', builder: buildFlatTrack },
@@ -29,12 +28,8 @@ export default function AIRacePage() {
   const [raceTime, setRaceTime] = useState(0);
   const [playerPosition, setPlayerPosition] = useState(0);
   const [aiPosition, setAiPosition] = useState(0);
-  const [selectedTrack, setSelectedTrack] = useState(getRandomTrack()); // Random track selection
+  const [selectedTrack, setSelectedTrack] = useState('flat');
   const [winner, setWinner] = useState(null);
-  const [raceTracker, setRaceTracker] = useState(null);
-  const [playerLaps, setPlayerLaps] = useState({ player: 0, ai: 0 });
-  const [racePosition, setRacePosition] = useState(1);
-  const [hasGivenUp, setHasGivenUp] = useState(false);
 
   // Get parameters
   const urlParams = new URLSearchParams(window.location.search);
@@ -79,13 +74,6 @@ export default function AIRacePage() {
     const trackGroup = trackData?.group ?? trackData;
     if (trackGroup) scene.add(trackGroup);
 
-    // Initialize race tracker
-    const tracker = new RaceTracker(trackData.curve, 3); // 3 laps
-    setRaceTracker(tracker);
-
-    // Get starting positions on the track
-    const startingPositions = getStartingPositions(trackData.curve, 2);
-
     // Create cars
     const cars = {};
     const adapters = {};
@@ -93,13 +81,13 @@ export default function AIRacePage() {
     const limiters = {};
     const runtimes = {};
 
-    // Player car (red)
+    // Player car (blue)
     const { group: playerCarGroup, wheels: playerCarWheels } = buildLowPolyCar({ 
       scale: 0.6, 
       wheelType: carConfig.wheels || 'standard',
-      bodyColor: 0xff4444
+      bodyColor: 0x4444ff
     });
-    playerCarGroup.position.copy(startingPositions[0]);
+    playerCarGroup.position.set(-5, 1, 0);
     scene.add(playerCarGroup);
     
     cars.player = playerCarGroup;
@@ -115,13 +103,13 @@ export default function AIRacePage() {
     });
     runtimes.player = new BlockRuntime(playerProgram);
 
-    // AI car (blue)
+    // AI car (red)
     const { group: aiCarGroup, wheels: aiCarWheels } = buildLowPolyCar({ 
       scale: 0.6, 
       wheelType: carConfig.wheels || 'standard',
-      bodyColor: 0x4444ff
+      bodyColor: 0xff4444
     });
-    aiCarGroup.position.copy(startingPositions[1]);
+    aiCarGroup.position.set(5, 1, 0);
     scene.add(aiCarGroup);
     
     cars.ai = aiCarGroup;
@@ -152,22 +140,9 @@ export default function AIRacePage() {
     let startTime = null;
     let raceFinished = false;
 
-    // Add players to race tracker
-    tracker.addPlayer('player', playerCarGroup.position);
-    tracker.addPlayer('ai', aiCarGroup.position);
-
-    // Third-person camera setup
+    // Camera follow logic
     const followCar = cars.player;
-    const { camera: thirdPersonCamera, updateCamera } = createThirdPersonCamera(followCar, scene);
-    camera.copy(thirdPersonCamera);
-
-    const handleGiveUp = () => {
-      if (!hasGivenUp && gameState === 'racing') {
-        setHasGivenUp(true);
-        setWinner('ai');
-        setGameState('finished');
-      }
-    };
+    const cameraOffset = new THREE.Vector3(0, 15, 25);
 
     const onResize = () => {
       const w = container.clientWidth, h = container.clientHeight;
@@ -195,7 +170,7 @@ export default function AIRacePage() {
 
       // Update both cars
       Object.keys(cars).forEach(carId => {
-        if (gameState === 'racing' && !raceFinished && !hasGivenUp) {
+        if (gameState === 'racing' && !raceFinished) {
           const sensorData = sensors[carId].sample(colliders);
           const desired = runtimes[carId].step({ 
             sensors: sensorData, 
@@ -205,39 +180,27 @@ export default function AIRacePage() {
           adapters[carId].setControls(safe);
         }
         adapters[carId].tick(dt);
-        
-        // Update race tracker
-        if (tracker) {
-          tracker.updatePlayer(carId, cars[carId].position);
-        }
       });
 
-      // Update third-person camera
-      updateCamera();
+      // Camera follows player car
+      if (followCar) {
+        const targetPos = followCar.position.clone().add(cameraOffset);
+        camera.position.lerp(targetPos, 0.05);
+        camera.lookAt(followCar.position);
+      }
 
-      // Update race progress
-      if (tracker) {
-        const playerProgress = tracker.getPlayerProgress('player');
-        const aiProgress = tracker.getPlayerProgress('ai');
-        
-        if (playerProgress && aiProgress) {
-          setPlayerLaps({
-            player: playerProgress.currentLap,
-            ai: aiProgress.currentLap
-          });
-          
-          setPlayerPosition(playerProgress.position);
-          setAiPosition(aiProgress.position);
-          setRacePosition(tracker.getPositionOnTrack('player'));
-          
-          // Check for race finish
-          if (tracker.isRaceFinished() && !winner && !hasGivenUp) {
-            const raceWinner = tracker.getWinner();
-            setWinner(raceWinner);
-            setGameState('finished');
-            raceFinished = true;
-          }
-        }
+      // Update positions and check for winner
+      const playerPos = cars.player.position.distanceTo(new THREE.Vector3(0, 0, 0));
+      const aiPos = cars.ai.position.distanceTo(new THREE.Vector3(0, 0, 0));
+      
+      setPlayerPosition(playerPos);
+      setAiPosition(aiPos);
+
+      // Check for race finish (simple distance-based for now)
+      if (gameState === 'racing' && !raceFinished && (playerPos > 200 || aiPos > 200)) {
+        raceFinished = true;
+        setGameState('finished');
+        setWinner(playerPos > aiPos ? 'player' : 'ai');
       }
 
       renderer.render(scene, camera);
@@ -266,102 +229,142 @@ export default function AIRacePage() {
       {/* 3D Scene */}
       <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
       
-      {/* Race HUD - Top Right */}
+      {/* UI Overlay */}
       <div style={{
         position: 'absolute',
-        top: '20px',
-        right: '20px',
-        background: 'rgba(0, 0, 0, 0.8)',
-        padding: '15px',
-        borderRadius: '10px',
+        top: 0,
+        left: 0,
+        right: 0,
+        padding: '20px',
+        background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%)',
         color: 'white',
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        minWidth: '200px'
+        fontFamily: 'monospace'
       }}>
-        {/* Lap Counter */}
-        <div style={{ marginBottom: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: '14px', opacity: 0.8 }}>LAP</div>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-            {playerLaps.player} / 3
+            🤖 AI Race Challenge
+          </div>
+          <div style={{ fontSize: '18px' }}>
+            Difficulty: <span style={{ color: '#00ffff' }}>{aiDifficulty}</span>
           </div>
         </div>
-        
-        {/* Timer */}
-        <div style={{ marginBottom: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: '14px', opacity: 0.8 }}>TIME</div>
-          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-            {formatTime(raceTime)}
+
+        {/* Race Status */}
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+          <div style={{ 
+            padding: '8px 16px', 
+            background: gameState === 'waiting' ? '#ff6b00' : gameState === 'racing' ? '#00ff6b' : winner === 'player' ? '#00ff00' : '#ff0000',
+            borderRadius: '20px',
+            fontSize: '14px',
+            fontWeight: 'bold'
+          }}>
+            {gameState === 'waiting' ? '⏳ Starting...' : 
+             gameState === 'racing' ? '🏃 Racing!' : 
+             winner === 'player' ? '🏆 You Win!' : '🤖 AI Wins!'}
           </div>
+          
+          {gameState === 'racing' && (
+            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+              Time: {formatTime(raceTime)}
+            </div>
+          )}
         </div>
-        
-        {/* Position */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '14px', opacity: 0.8 }}>POSITION</div>
-          <div style={{ fontSize: '20px', fontWeight: 'bold', color: racePosition === 1 ? '#00ff00' : '#ff6b9d' }}>
-            {racePosition} / 2
+
+        {/* Player vs AI Status */}
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '1fr 1fr', 
+          gap: '10px', 
+          marginTop: '15px',
+          maxWidth: '400px'
+        }}>
+          <div style={{
+            padding: '10px',
+            background: 'rgba(68, 68, 255, 0.3)',
+            borderRadius: '8px',
+            border: winner === 'player' ? '2px solid #00ff00' : '1px solid rgba(255,255,255,0.2)'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+              👤 You (Player)
+            </div>
+            <div style={{ fontSize: '12px', opacity: 0.8 }}>
+              Distance: {playerPosition.toFixed(1)}m
+            </div>
+          </div>
+          
+          <div style={{
+            padding: '10px',
+            background: 'rgba(255, 68, 68, 0.3)',
+            borderRadius: '8px',
+            border: winner === 'ai' ? '2px solid #ff0000' : '1px solid rgba(255,255,255,0.2)'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+              🤖 Cerebras AI
+            </div>
+            <div style={{ fontSize: '12px', opacity: 0.8 }}>
+              Distance: {aiPosition.toFixed(1)}m
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Track Name - Top Left */}
-      <div style={{
-        position: 'absolute',
-        top: '20px',
-        left: '20px',
-        background: 'rgba(0, 0, 0, 0.8)',
-        padding: '10px 15px',
-        borderRadius: '8px',
-        color: 'white',
-        fontFamily: 'monospace',
-        fontSize: '16px',
-        fontWeight: 'bold'
-      }}>
-        🤖 {TRACKS[selectedTrack].name} vs AI ({aiDifficulty})
-      </div>
-
-      {/* Give Up Button - Bottom Center */}
-      {gameState === 'racing' && !hasGivenUp && (
+      {/* Track Selection (only show before race starts) */}
+      {gameState === 'waiting' && (
         <div style={{
           position: 'absolute',
-          bottom: '30px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          textAlign: 'center'
+          bottom: '20px',
+          left: '20px',
+          right: '20px',
+          background: 'rgba(0,0,0,0.8)',
+          padding: '15px',
+          borderRadius: '10px',
+          color: 'white'
         }}>
-          <button
-            onClick={() => {
-              setHasGivenUp(true);
-              setWinner('ai');
-              setGameState('finished');
-            }}
-            style={{
-              padding: '12px 24px',
-              background: 'rgba(255, 0, 0, 0.8)',
-              border: '2px solid #ff4444',
-              borderRadius: '8px',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background = 'rgba(255, 0, 0, 1)';
-              e.target.style.transform = 'scale(1.05)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = 'rgba(255, 0, 0, 0.8)';
-              e.target.style.transform = 'scale(1)';
-            }}
-          >
-            🏳️ Give Up
-          </button>
+          <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>Select Track:</div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {Object.entries(TRACKS).map(([key, track]) => (
+              <button
+                key={key}
+                onClick={() => setSelectedTrack(key)}
+                style={{
+                  padding: '8px 16px',
+                  background: selectedTrack === key ? '#00ffff' : 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: selectedTrack === key ? '#000' : 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                {track.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Starting Countdown */}
-      {gameState === 'waiting' && (
+      {/* Back button */}
+      <button
+        onClick={() => navigate('/')}
+        style={{
+          position: 'absolute',
+          top: '20px',
+          right: '20px',
+          padding: '10px 20px',
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.3)',
+          borderRadius: '6px',
+          color: 'white',
+          cursor: 'pointer',
+          fontSize: '14px'
+        }}
+      >
+        ← Back to Home
+      </button>
+
+      {/* Race Results */}
+      {gameState === 'finished' && (
         <div style={{
           position: 'absolute',
           top: '50%',
@@ -372,67 +375,25 @@ export default function AIRacePage() {
           borderRadius: '15px',
           color: 'white',
           textAlign: 'center',
-          fontSize: '24px',
-          fontWeight: 'bold'
+          minWidth: '300px'
         }}>
-          <div style={{ marginBottom: '20px' }}>🤖 AI Challenge!</div>
-          <div style={{ fontSize: '18px', opacity: 0.8 }}>
-            Track: {TRACKS[selectedTrack].name}
+          <div style={{ fontSize: '32px', marginBottom: '20px' }}>
+            {winner === 'player' ? '🏆 Victory!' : '🤖 AI Wins!'}
           </div>
-          <div style={{ fontSize: '16px', marginTop: '10px', opacity: 0.6 }}>
-            Difficulty: {aiDifficulty}
+          <div style={{ fontSize: '18px', marginBottom: '20px' }}>
+            Race Time: {formatTime(raceTime)}
           </div>
-          <div style={{ fontSize: '16px', marginTop: '10px', opacity: 0.6 }}>
-            Race starting in 3 seconds...
-          </div>
-        </div>
-      )}
-
-      {/* Race Results */}
-      {gameState === 'finished' && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          background: 'rgba(0,0,0,0.95)',
-          padding: '40px',
-          borderRadius: '20px',
-          color: 'white',
-          textAlign: 'center',
-          minWidth: '400px',
-          border: '2px solid #00ffff'
-        }}>
-          <div style={{ fontSize: '48px', marginBottom: '20px' }}>
-            {winner === 'player' ? '🏆' : hasGivenUp ? '🏳️' : '🤖'}
-          </div>
-          <div style={{ fontSize: '32px', marginBottom: '20px', fontWeight: 'bold' }}>
-            {winner === 'player' ? 'Victory!' : 
-             hasGivenUp ? 'You Gave Up' : 
-             'AI Wins!'}
-          </div>
-          <div style={{ fontSize: '18px', marginBottom: '30px', opacity: 0.8 }}>
-            {hasGivenUp ? 'Better luck next time!' : 
-             winner === 'player' ? 'You beat the AI!' : 
-             'The AI was too strong this time!'}
-          </div>
-          <div style={{ fontSize: '16px', marginBottom: '30px' }}>
-            <div>Final Time: {formatTime(raceTime)}</div>
-            <div>Track: {TRACKS[selectedTrack].name}</div>
-            <div>AI Difficulty: {aiDifficulty}</div>
-          </div>
-          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
             <button
               onClick={() => window.location.reload()}
               style={{
-                padding: '12px 24px',
+                padding: '10px 20px',
                 background: '#00ff00',
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: '6px',
                 color: '#000',
                 cursor: 'pointer',
-                fontWeight: 'bold',
-                fontSize: '16px'
+                fontWeight: 'bold'
               }}
             >
               Race Again
@@ -440,13 +401,12 @@ export default function AIRacePage() {
             <button
               onClick={() => navigate('/')}
               style={{
-                padding: '12px 24px',
+                padding: '10px 20px',
                 background: 'rgba(255,255,255,0.2)',
                 border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: '8px',
+                borderRadius: '6px',
                 color: 'white',
-                cursor: 'pointer',
-                fontSize: '16px'
+                cursor: 'pointer'
               }}
             >
               Home
